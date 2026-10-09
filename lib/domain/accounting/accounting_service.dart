@@ -316,7 +316,10 @@ class AccountingService {
           throw ArgumentError('فترات الغيم لا يجوز أن تتداخل');
         }
       }
-      final totalCloud = parsed.fold<int>(0, (sum, x) => sum + x['minutes'] as int);
+      final totalCloud = parsed.fold<int>(
+        0,
+        (sum, x) => sum + (x['minutes'] as int),
+      );
       if (totalCloud > AccountingCalculations.minutesBetween(start, endDt, allowMidnightCrossing: allowMidnight)) {
         throw ArgumentError('إجمالي خصم الغيم لا يمكن أن يتجاوز مدة السقاية');
       }
