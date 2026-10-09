@@ -1065,7 +1065,7 @@ class StationRepository {
                LEFT JOIN beneficiaries b ON b.id=i.beneficiary_id
                LEFT JOIN workers wk ON wk.id=i.worker_id
                LEFT JOIN partners pt ON pt.id=i.partner_id
-               WHERE $w ORDER BY i.start_datetime DESC''', a);
+               WHERE $w ORDER BY i.start_datetime DESC''', args: a);
         }
       case 'cash_flow':
         return db.query(
