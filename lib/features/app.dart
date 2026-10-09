@@ -1266,7 +1266,6 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             ])),
           ]),
-        ),
       );
 
   Widget historyView(BuildContext c) {
