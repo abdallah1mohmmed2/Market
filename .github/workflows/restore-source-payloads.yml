@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'tools/upload_payload/**'
+      - 'tools/upload_payload/RESTORE_NOW'
       - '.github/workflows/restore-source-payloads.yml'
 permissions:
   contents: write
@@ -15,6 +15,23 @@ jobs:
         with:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assemble staged payload chunks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('tools/upload_payload')
+          groups = {}
+          for p in root.glob('*.gz.b64.part*'):
+              base = p.name.split('.part', 1)[0]
+              groups.setdefault(base, []).append(p)
+          for base, parts in groups.items():
+              with (root / base).open('wb') as out:
+                  for p in sorted(parts, key=lambda q: q.name):
+                      out.write(p.read_bytes())
+              for p in parts:
+                  p.unlink()
+          PY
       - name: Restore compressed source payloads
         shell: bash
         run: |
@@ -22,8 +39,7 @@ jobs:
           import base64, gzip
           from pathlib import Path
           root = Path('.')
-          payloads = sorted((root / 'tools/upload_payload').glob('*.gz.b64'))
-          for payload in payloads:
+          for payload in sorted((root / 'tools/upload_payload').glob('*.gz.b64')):
               rel = payload.name[:-len('.gz.b64')].replace('__', '/')
               target = root / rel
               target.parent.mkdir(parents=True, exist_ok=True)
@@ -38,6 +54,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           if ! git diff --cached --quiet; then
-            git commit -m 'Restore staged source files from upload batch'
+            git commit -m 'Restore original project files from upload batch'
             git push origin main
           fi
