@@ -1056,7 +1056,7 @@ class StationRepository {
           if (workerId != null) { w += ' AND i.worker_id=?'; a.add(workerId); }
           if (partnerId != null) { w += ' AND i.partner_id=?'; a.add(partnerId); }
           if (systemType != null && systemType != 'all') { w += ' AND i.system_type=?'; a.add(systemType); }
-          return db.rawQuery(
+          return db.query(
             '''SELECT COALESCE(b.name,wk.name,pt.name,'غير محدد') party_name,
                       i.start_datetime,i.end_datetime,i.minutes,i.paid_amount,i.total_amount,
                       COALESCE(i.cloud_minutes,0) cloud_minutes,
