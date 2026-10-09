@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - source_archive.zip
-      - IMPORT_SOURCE_NOW
     branches:
       - main
 
