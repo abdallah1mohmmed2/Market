@@ -1,5 +1,7 @@
 from pathlib import Path
-APP=Path('lib/features/app.dart').read_text(); REPO=Path('lib/data/repositories/repositories.dart').read_text(); MAIN=Path('android/app/src/main/kotlin/com/saqia/saqia_station/MainActivity.kt').read_text()
+APP=Path('lib/features/app.dart').read_text()
+REPO=Path('lib/data/repositories/repositories.dart').read_text()
+MAIN=Path('android/app/src/main/kotlin/com/saqia/saqia_station/MainActivity.kt').read_text()
 checks=[]
 def ck(name, ok): checks.append((name,bool(ok)))
 ck('beneficiary modern cards', "LayoutBuilder(builder: (_, box)" in APP and "kind: 'beneficiary'" in APP or "kind:'beneficiary'" in APP)

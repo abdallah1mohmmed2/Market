@@ -9,6 +9,7 @@ void main() {
     final accounting = File('${root.path}/lib/domain/accounting/accounting_service.dart').readAsStringSync();
     final repo = File('${root.path}/lib/data/repositories/repositories.dart').readAsStringSync();
     final server = File('${root.path}/server/lib/server.dart').readAsStringSync();
+
     const tables = [
       'stations','pumps','beneficiaries','partners','workers','irrigations',
       'irrigation_sessions','queue_entries','booking_requests','diesel_movements',
@@ -16,7 +17,10 @@ void main() {
       'worker_transactions','partner_transactions','accounts','journal_entries',
       'journal_lines','audit_logs','settings','notifications','backup_records','sync_queue',
     ];
-    for (final table in tables) { expect(schema, contains('CREATE TABLE $table')); }
+    for (final table in tables) {
+      expect(schema, contains('CREATE TABLE $table'));
+    }
+
     expect(accounting, contains('_assertPeriodOpen'));
     expect(accounting, contains('journal_entries'));
     expect(accounting, contains('journal_lines'));

@@ -37,5 +37,14 @@ V6 continues the same `saqia_station_v2` source tree from V5. No parallel projec
 - Admin JWT retains station identity and role claims.
 - Audit logging was added to relevant API-created records.
 
-## Verification
-- Static checks are documented in the repository. Flutter analyze/test/build must be run in an environment with Flutter SDK; do not infer success from the presence of the commands.
+## Verification performed in this environment
+- `python3 tools/spec_audit.py` PASS.
+- `python3 tools/verify_source.py` PASS.
+- `python3 tools/screen_db_audit.py` PASS: 17/17 admin screens mapped to persistence/service operations.
+- Authoritative SQL executed successfully in Python SQLite: 25/25 required tables.
+- Station ownership columns validated on 5 station-scoped entities.
+- Python syntax checks for project audit tools PASS.
+- ZIP integrity will be checked after packaging.
+
+## Not claimed
+Flutter/Dart SDK is not installed in this execution environment. Therefore V6 does **not** claim successful `flutter analyze`, `flutter test`, Android debug/release builds, or Web builds. Those remain runtime verification steps, not static-source claims.

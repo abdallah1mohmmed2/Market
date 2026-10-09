@@ -17,6 +17,7 @@ Flutter SDK/Dart SDK is unavailable in this environment. Runtime UI interaction,
 
 V14: unified the user-facing concept of queue/booking into one turn workflow controlled by queue_type; validated by queue_booking_unified_audit.py (17/17).
 
+
 ## V15 accounting terminology status
 - `له/عليه/متوازن` is now the single party-balance presentation layer.
 - `مدين/دائن` remains reserved for journal/ledger accounting columns.
@@ -38,7 +39,7 @@ V14: unified the user-facing concept of queue/booking into one turn workflow con
 لم يُشغَّل Flutter هنا: شغّل flutter analyze و flutter test. استعلامات SQL الجديدة فُحصت على SQLite حقيقية عبر tools/sql_logic_check.py.
 
 ## الدفعة الثانية من الإصلاحات
-1. **التقريب:** كل مبالغ السقاية تُحسب بقسمة صحيحة (`divRound` / `amountForMinutes`)، ولترات/ساعة بدقة 3 خانات عشرية.
+1. **التقريب:** كل مبالغ السقاية تُحسب بقسمة صحيحة (`divRound` / `amountForMinutes`)، ولترات/ساعة بدقة 3 خانات عشرية. زال خطأ مثل 23 دقيقة × 300 = 116 عند التقريب لأعلى.
 2. **مدة الانتظار:** تُفحص أقرب سقاية سابقة وأقرب لاحقة، فلا يُرفض الإدخال بتاريخ قديم خطأً، ولا يُسمح بسقاية قريبة جدًا قبل لاحقة.
 3. **عبور منتصف الليل:** تُنقل النهاية ليوم تالٍ مرة واحدة قبل الفحص والحفظ (`endDt`)، فلا يُحفظ `end_datetime` أصغر من البداية.
 4. **إنهاء الجلسة ذرّي:** تُنهى الجلسة داخل نفس معاملة تسجيل السقاية (مع `diesel_after` بعد حركات الاستهلاك). عند أي فشل تبقى «تعمل» ويمكن إعادة المحاولة.
@@ -54,5 +55,6 @@ V14: unified the user-facing concept of queue/booking into one turn workflow con
 لم يُشغَّل Flutter هنا: شغّل flutter pub get && flutter analyze && flutter test.
 
 ## V23.1 (فحص ترابط الشاشات والبيانات)
-مُصلَح: `snoozed_until` في مخطط التثبيت الجديد؛ شاشة قياس الأداء (كانت تستعلم عمودًا غير موجود)؛ كشف المستفيد (رصيد جارٍ يطابق beneficiaryBalance + أعمدة description/debit/credit)؛ تقرير المحتاجين (balance)؛ تقريرا العامل والشريك (description)؛ فلتر «إلى» في الدفتر (يشمل اليوم كاملًا)؛ «المتبقي» في لوحة التحكم (صافي أرصدة المستفيدين).
+مُصلَح: `snoozed_until` في مخطط التثبيت الجديد؛ شاشة قياس الأداء (كانت تستعلم عمودًا غير موجود)؛ كشف المستفيد (رصيد جارٍ يطابق beneficiaryBalance + أعمدة description/debit/credit)؛
+تقرير المحتاجين (balance)؛ تقريرا العامل والشريك (description)؛ فلتر «إلى» في الدفتر (يشمل اليوم كاملًا)؛ «المتبقي» في لوحة التحكم (صافي أرصدة المستفيدين).
 مفتوح (يحتاج قرارًا): رصيد افتتاح الصندوق بلا قيد؛ إشارة «تسليم الديزل»؛ تطبيق المستفيد غير موصول بنقطة دخول ولا بالتطبيق الإداري؛ الدور الدائري لا يدور؛ إعدادات بلا أثر؛ تقرير طرق الدفع يجمع الداخل والخارج.

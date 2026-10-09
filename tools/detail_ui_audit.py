@@ -1,4 +1,5 @@
 from pathlib import Path
+
 p = Path(__file__).resolve().parents[1] / "lib" / "features" / "app.dart"
 s = p.read_text(encoding="utf-8")
 checks = {
@@ -15,5 +16,6 @@ checks = {
 }
 failed = [k for k,v in checks.items() if not v]
 for k,v in checks.items(): print(("PASS" if v else "FAIL") + " - " + k)
-if failed: raise SystemExit("DETAIL UI AUDIT FAILED: " + ", ".join(failed))
+if failed:
+    raise SystemExit("DETAIL UI AUDIT FAILED: " + ", ".join(failed))
 print("DETAIL UI AUDIT: %d/%d passed" % (len(checks), len(checks)))

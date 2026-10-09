@@ -1,12 +1,16 @@
 from pathlib import Path
 import re
+
 ROOT = Path(__file__).resolve().parents[1]
 APP = (ROOT / 'lib/features/app.dart').read_text()
 CALC = (ROOT / 'lib/domain/accounting/calculations.dart').read_text()
 REPORT = (ROOT / 'lib/services/report_service.dart').read_text()
 REPO = (ROOT / 'lib/data/repositories/repositories.dart').read_text()
+
 checks = []
-def check(name, cond): checks.append((name, bool(cond)))
+def check(name, cond):
+    checks.append((name, bool(cond)))
+
 check('central balance label exists', "static String balanceLabel(int balance)" in CALC)
 check('positive means عليه', "'عليه ${balance.abs()} ريال'" in CALC)
 check('negative means له', "'له ${balance.abs()} ريال'" in CALC)
@@ -29,7 +33,10 @@ check('journal retains debit credit', "'journal': ['date','description','account
 check('ledger retains debit credit', "'ledger': ['date','description','account_code','account_name','debit','credit']" in REPORT)
 check('no user-facing ambiguous المتبقي in app', 'المتبقي' not in APP)
 check('no report-facing ambiguous المتبقي', "'المتبقي'" not in REPORT)
+
 failed = [n for n, ok in checks if not ok]
-for n, ok in checks: print(('PASS' if ok else 'FAIL') + ' - ' + n)
+for n, ok in checks:
+    print(('PASS' if ok else 'FAIL') + ' - ' + n)
 print(f'Accounting terms acceptance: {len(checks)-len(failed)}/{len(checks)} PASS')
-if failed: raise SystemExit(1)
+if failed:
+    raise SystemExit(1)
