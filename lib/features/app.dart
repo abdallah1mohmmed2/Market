@@ -1065,7 +1065,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                LEFT JOIN partners pt ON pt.id=p.partner_id
                WHERE p.payment_method_id=? AND p.status='posted'
                ORDER BY p.date DESC,p.id DESC''', args: [widget.id]);
-          final disbursements = await widget.r.db.rawQuery(
+          final disbursements = await widget.r.db.query(
             '''SELECT e.id,e.date,e.amount,e.title description,e.notes,
                       COALESCE(e.title,'مصروف') party_name,
                       'مسلّمات' movement_group
@@ -1266,6 +1266,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             ])),
           ]),
+        ),
       );
 
   Widget historyView(BuildContext c) {
@@ -1528,8 +1529,8 @@ class _TimelineItem extends StatelessWidget {
           if (amount.isNotEmpty) Text(amount, style: const TextStyle(fontWeight: FontWeight.w900)),
         ]),
       )),
-    ],
     ]),
+  );
 }
 
 class BeneficiariesPage extends StatefulWidget {
