@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
@@ -178,7 +179,7 @@ class _LoginState extends State<AdminLoginPage> {
 
   @override
   Widget build(BuildContext c) => Directionality(
-    textDirection: TextDirection.rtl,
+    textDirection: ui.TextDirection.rtl,
     child: Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -356,7 +357,7 @@ class _ShellState extends State<AdminShell> {
     final menu = visible.where((i) => pages[i].contains(filter)).toList();
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: ui.TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -1410,7 +1411,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
     final meta = fieldsFor(['date', 'created_at', 'scheduled_start', 'scheduled_end', 'reference_number', 'description', 'memo', 'notes', 'cancel_reason']);
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: ui.TextDirection.rtl,
       child: Scaffold(
         backgroundColor: Theme.of(c).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -5747,7 +5748,7 @@ class ReportPreviewPage extends StatelessWidget {
   Widget build(BuildContext c) {
     final title = ReportService.titles[keyName] ?? 'تقرير';
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: ui.TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
           title: Text(title),
