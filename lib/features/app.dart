@@ -1055,7 +1055,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
           d = (await widget.r.db.query(
             'payment_methods', where: 'id=?', whereArgs: [widget.id], limit: 1,
           )).first;
-          final receipts = await widget.r.db.rawQuery(
+          final receipts = await widget.r.db.query(
             '''SELECT p.id,p.date,p.amount,p.reference_number,p.notes,
                       COALESCE(b.name,w.name,pt.name,'غير محدد') party_name,
                       'مقبوضات' movement_group
@@ -1064,19 +1064,19 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                LEFT JOIN workers w ON w.id=p.worker_id
                LEFT JOIN partners pt ON pt.id=p.partner_id
                WHERE p.payment_method_id=? AND p.status='posted'
-               ORDER BY p.date DESC,p.id DESC''', [widget.id]);
+               ORDER BY p.date DESC,p.id DESC''', args: [widget.id]);
           final disbursements = await widget.r.db.rawQuery(
             '''SELECT e.id,e.date,e.amount,e.title description,e.notes,
                       COALESCE(e.title,'مصروف') party_name,
                       'مسلّمات' movement_group
                FROM expenses e
                WHERE e.payment_method_id=? AND e.status='posted'
-               ORDER BY e.date DESC,e.id DESC''', [widget.id]);
+               ORDER BY e.date DESC,e.id DESC''', args: [widget.id]);
           paymentReceipts = receipts;
           paymentDisbursements = disbursements;
           h = [
-            ...receipts.map((x) => {...x}),
-            ...disbursements.map((x) => {...x}),
+            ...receipts.map((x) => <String, Object?>{...x}),
+            ...disbursements.map((x) => <String, Object?>{...x}),
           ]..sort((a,b) => '${b['date']}'.compareTo('${a['date']}'));
           break;
         case 'queue':
@@ -1266,7 +1266,6 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             ])),
           ]),
-        ),
       );
 
   Widget historyView(BuildContext c) {
@@ -1529,7 +1528,7 @@ class _TimelineItem extends StatelessWidget {
           if (amount.isNotEmpty) Text(amount, style: const TextStyle(fontWeight: FontWeight.w900)),
         ]),
       )),
-    ],
+    ]),
   );
 }
 
@@ -1768,11 +1767,105 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
           child: rows.isEmpty && !loading
               ? const EmptyView('لا توجد بيانات مطابقة')
               : LayoutBuilder(builder: (_, box) {
-                  final cols=box.maxWidth>=1100?3:box.maxWidth>=720?2:1; final gap=12.0; final w=(box.maxWidth-gap*(cols-1))/cols;
-                  return SingleChildScrollView(child:Wrap(spacing:gap,runSpacing:gap,children:rows.map((x){
-                    final b=(x['balance'] as num?)?.round()??0;
-                    return SizedBox(width:w,child:InkWell(borderRadius:BorderRadius.circular(24),onTap:()=>details(x),onLongPress:()=>showModalBottomSheet(context:context,showDragHandle:true,builder:(bc)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('تعديل معلومات المستخدم'),onTap:(){Navigator.pop(bc);edit(x);}),if(widget.manager)ListTile(leading:const Icon(Icons.delete_outline,color:Colors.red),title:const Text('حذف'),onTap:(){Navigator.pop(bc);remove(x);})]))),child:Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[CircleAvatar(child:const Icon(Icons.agriculture_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(x);if(v=='delete'&&widget.manager)remove(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),const SizedBox(height:10),Text('${x['phone']??'بدون هاتف'} • ${x['jerba_number']??'بدون رقم جربة'}',style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:10),Text(AccountingCalculations.balanceLabel(b),style:TextStyle(fontWeight:FontWeight.w900,color:b>0?Colors.red:_green)),const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:()=>details(x),icon:const Icon(Icons.open_in_new),label:const Text('التفاصيل')))]))));
-                  }).toList()));
+                  final cols = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
+                  final gap = 12.0;
+                  final width = (box.maxWidth - gap * (cols - 1)) / cols;
+                  return SingleChildScrollView(
+                    child: Wrap(
+                      spacing: gap,
+                      runSpacing: gap,
+                      children: rows.map((x) {
+                        final balance = (x['balance'] as num?)?.round() ?? 0;
+                        return SizedBox(
+                          width: width,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(24),
+                            onTap: () => details(x),
+                            onLongPress: () => showModalBottomSheet<void>(
+                              context: context,
+                              showDragHandle: true,
+                              builder: (bc) => SafeArea(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      leading: const Icon(Icons.edit_outlined),
+                                      title: const Text('تعديل معلومات المستخدم'),
+                                      onTap: () {
+                                        Navigator.pop(bc);
+                                        edit(x);
+                                      },
+                                    ),
+                                    if (widget.manager)
+                                      ListTile(
+                                        leading: const Icon(Icons.delete_outline, color: Colors.red),
+                                        title: const Text('حذف'),
+                                        onTap: () {
+                                          Navigator.pop(bc);
+                                          remove(x);
+                                        },
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            child: Card(
+                              margin: EdgeInsets.zero,
+                              child: Padding(
+                                padding: const EdgeInsets.all(18),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const CircleAvatar(child: Icon(Icons.agriculture_rounded)),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            '${x['name']}',
+                                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                                          ),
+                                        ),
+                                        PopupMenuButton<String>(
+                                          onSelected: (v) {
+                                            if (v == 'edit') edit(x);
+                                            if (v == 'delete' && widget.manager) remove(x);
+                                          },
+                                          itemBuilder: (_) => const [
+                                            PopupMenuItem(value: 'edit', child: Text('تعديل معلومات المستخدم')),
+                                            PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      '${x['phone'] ?? 'بدون هاتف'} • ${x['jerba_number'] ?? 'بدون رقم جربة'}',
+                                      style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      AccountingCalculations.balanceLabel(balance),
+                                      style: TextStyle(fontWeight: FontWeight.w900, color: balance > 0 ? Colors.red : _green),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => details(x),
+                                        icon: const Icon(Icons.open_in_new),
+                                        label: const Text('التفاصيل'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  );
                 }),
         ),
       ],
@@ -3121,7 +3214,7 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true && id != null) {
-      await widget.r.enqueue(id, userId: widget.userId);
+      await widget.r.enqueue(id!, userId: widget.userId);
       await load();
     }
   }
@@ -3169,7 +3262,7 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true && id != null) {
-      if (!await runGuarded(context, () => widget.r.createBooking(id, n.text, userId: widget.userId))) return;
+      if (!await runGuarded(context, () => widget.r.createBooking(id!, n.text, userId: widget.userId))) return;
       await load();
     }
   }
@@ -4627,16 +4720,90 @@ class _WorkersState extends State<WorkersPage> {
                       DropdownMenuItem(value: m['id'] as int, child: Text('${m['name']}')),
                   ],
                   onChanged: (v) => s(() => pm = v),
-                  decoration: const InputDecoration(labelText: 'طريقة الدفع'),
-                ),
-              TextField(
-                controller: a,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'المبلغ'),
-              ),
-              TextField(
-                controller: h,
-                keyboardType: TextInputType.number,
+                : LayoutBuilder(builder: (_, box) {
+                    final columns = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
+                    final gap = 12.0;
+                    final width = (box.maxWidth - gap * (columns - 1)) / columns;
+                    return SingleChildScrollView(
+                      child: Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: filtered.map((x) {
+                          final balance = (x['balance'] as num?)?.round() ?? 0;
+                          return SizedBox(
+                            width: width,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(24),
+                              onTap: () => Navigator.push(
+                                c,
+                                MaterialPageRoute(
+                                  builder: (_) => RecordDetailsPage(
+                                    widget.r,
+                                    kind: 'worker',
+                                    id: x['id'] as int,
+                                    title: 'تفاصيل العامل',
+                                  ),
+                                ),
+                              ),
+                              onLongPress: () => workerActions(x),
+                              child: Card(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const CircleAvatar(child: Icon(Icons.engineering_rounded)),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              '${x['name']}',
+                                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                                            ),
+                                          ),
+                                          PopupMenuButton<String>(
+                                            onSelected: (v) {
+                                              if (v == 'edit') editWorker(x);
+                                              if (v == 'delete') deleteWorker(x);
+                                            },
+                                            itemBuilder: (_) => const [
+                                              PopupMenuItem(value: 'edit', child: Text('تعديل معلومات المستخدم')),
+                                              PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        payTypeName('${x['pay_type']}'),
+                                        style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        AccountingCalculations.balanceLabel(balance),
+                                        style: const TextStyle(fontWeight: FontWeight.w900),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => transaction(x),
+                                          icon: const Icon(Icons.account_balance_wallet_outlined),
+                                          label: const Text('حركة العامل'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    );
+                  }),
                 decoration: const InputDecoration(labelText: 'عدد الساعات'),
               ),
             ],
@@ -4834,10 +5001,103 @@ class _PartnersState extends State<PartnersPage> {
   }
 
   Future<void> share(Map<String, Object?> x) async {
-    final amount = TextEditingController();
-    final pct = TextEditingController(
-      text: '${x['ownership_percentage'] ?? 0}',
-    );
+                : LayoutBuilder(builder: (_, box) {
+                    final columns = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
+                    final gap = 12.0;
+                    final width = (box.maxWidth - gap * (columns - 1)) / columns;
+                    return SingleChildScrollView(
+                      child: Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: filtered.map((x) {
+                          final balance = (x['balance'] as num?)?.round() ?? 0;
+                          return SizedBox(
+                            width: width,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(24),
+                              onTap: () => Navigator.push(
+                                c,
+                                MaterialPageRoute(
+                                  builder: (_) => RecordDetailsPage(
+                                    widget.r,
+                                    kind: 'partner',
+                                    id: x['id'] as int,
+                                    title: 'تفاصيل الشريك',
+                                  ),
+                                ),
+                              ),
+                              onLongPress: () => partnerActions(x),
+                              child: Card(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const CircleAvatar(child: Icon(Icons.handshake_rounded)),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              '${x['name']}',
+                                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                                            ),
+                                          ),
+                                          PopupMenuButton<String>(
+                                            onSelected: (v) {
+                                              if (v == 'edit') editPartner(x);
+                                              if (v == 'delete') deletePartner(x);
+                                            },
+                                            itemBuilder: (_) => const [
+                                              PopupMenuItem(value: 'edit', child: Text('تعديل معلومات المستخدم')),
+                                              PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        x['ownership_mode'] == 'percentage'
+                                            ? 'نسبة ملكية ${x['ownership_percentage'] ?? 0}%'
+                                            : 'عدد حصص ${x['shares_count'] ?? 0}',
+                                        style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        AccountingCalculations.balanceLabel(balance),
+                                        style: const TextStyle(fontWeight: FontWeight.w900),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton.icon(
+                                              onPressed: () => share(x),
+                                              icon: const Icon(Icons.add_chart),
+                                              label: const Text('استحقاق'),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: OutlinedButton.icon(
+                                              onPressed: () => pay(x),
+                                              icon: const Icon(Icons.payments),
+                                              label: const Text('دفع'),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    );
+                  }),
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => FormDialog(
