@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   import-source:
-    if: github.event_name == 'push' && contains(github.event.head_commit.added, 'source_archive.zip')
+    if: github.event_name == 'push' && (contains(github.event.head_commit.added, 'source_archive.zip') || contains(github.event.head_commit.modified, 'source_archive.zip'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
