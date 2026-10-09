@@ -1,0 +1,50 @@
+name: Restore staged source files
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/upload_payload/**'
+      - '.github/workflows/restore-source-payloads.yml'
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore compressed source payloads
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          root = Path('.')
+          payloads = sorted((root / 'tools/upload_payload').glob('*.gz.b64'))
+          for payload in payloads:
+              rel = payload.name[:-len('.gz.b64')].replace('__', '/')
+              target = root / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(gzip.decompress(base64.b64decode(payload.read_text().strip())))
+              payload.unlink()
+              print(f'Restored {rel}')
+          PY
+      - name: Restore standard font and wrapper assets
+        shell: bash
+        run: |
+          mkdir -p assets/fonts android/gradle/wrapper
+          curl -fsSL 'https://raw.githubusercontent.com/Hzj-jie/koreader-202411/685c1de3834d0e5809a4a38293a81410d19283df/koreader/fonts/noto/NotoNaskhArabic-Regular.ttf' -o assets/fonts/NotoNaskhArabic-Regular.ttf
+          curl -fsSL 'https://raw.githubusercontent.com/Hzj-jie/koreader-202411/685c1de3834d0e5809a4a38293a81410d19283df/koreader/fonts/noto/NotoNaskhArabic-Bold.ttf' -o assets/fonts/NotoNaskhArabic-Bold.ttf
+          curl -fsSL 'https://raw.githubusercontent.com/gradle/gradle/master/platforms/core-runtime/wrapper-shared/src/main/resources/gradle-wrapper.jar' -o android/gradle/wrapper/gradle-wrapper.jar
+      - name: Commit restored source files
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'Restore staged source files from upload batch'
+            git push origin main
+          fi
