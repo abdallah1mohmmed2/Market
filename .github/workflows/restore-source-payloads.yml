@@ -48,3 +48,5 @@ jobs:
             git commit -m 'Restore staged source files from upload batch'
             git push origin main
           fi
+
+# Upload restoration workflow marker: staged source payloads are reconstructed on main.
