@@ -9,6 +9,7 @@ on:
     paths:
       - 'lib/**'
       - 'test/**'
+      - 'server/**'
       - 'android/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
@@ -47,7 +48,13 @@ jobs:
         run: flutter pub get
 
       - name: Analyze Dart code
-        run: flutter analyze
+        run: flutter analyze lib test
+
+      - name: Analyze server code
+        working-directory: server
+        run: |
+          dart pub get
+          dart analyze
 
       - name: Build debug APK
         run: flutter build apk --debug
