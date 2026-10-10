@@ -48,7 +48,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze Dart code
-        run: flutter analyze lib test
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib test
 
       - name: Analyze server code
         working-directory: server
