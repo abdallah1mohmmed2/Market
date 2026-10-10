@@ -1,3 +1,4 @@
+import '../core/app_clock.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../data/local/database.dart';
@@ -42,7 +43,7 @@ class AdminService {
       'password_hash': hashPassword(password),
       'role': role,
       'active': 1,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': AppClock.now().toIso8601String(),
     });
     await db.audit(
       operation: 'create',
@@ -83,7 +84,7 @@ class AdminService {
       'station_id': stationId,
       'period_start': start.toIso8601String(),
       'period_end': end.toIso8601String(),
-      'closed_at': DateTime.now().toIso8601String(),
+      'closed_at': AppClock.now().toIso8601String(),
       'closed_by': userId,
       'opening_transfer': openingTransfer ? 1 : 0,
       'notes': notes,

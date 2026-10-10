@@ -1,5 +1,7 @@
+import '../core/app_clock.dart';
+import '../core/app_prefs.dart';
+import '../core/period_ranges.dart';
 import 'dart:async';
-import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +45,118 @@ Future<bool> runGuarded(BuildContext context, Future<void> Function() action) as
     return false;
   }
 }
+
+/// نافذة تطلب سببًا (إلزاميًا) قبل عملية حساسة كالإلغاء أو الحذف. تعيد النص أو null عند التراجع.
+Future<String?> askReason(
+  BuildContext context,
+  String title, {
+  String? message,
+  String confirmLabel = 'تأكيد',
+}) async {
+  final c = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => StatefulBuilder(
+      builder: (d, s) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(message),
+              ),
+            TextField(
+              controller: c,
+              autofocus: true,
+              onChanged: (_) => s(() {}),
+              decoration: const InputDecoration(labelText: 'السبب *'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('تراجع'),
+          ),
+          FilledButton(
+            onPressed: c.text.trim().isEmpty ? null : () => Navigator.pop(d, true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    ),
+  );
+  return ok == true ? c.text.trim() : null;
+}
+
+/// الصندوق تابع لطريقة الدفع: إن كان للطريقة صندوق مرتبط فهو المختار دائمًا.
+int? cashboxForMethod(
+  List<Map<String, Object?>> methods,
+  List<Map<String, Object?>> cash,
+  int? methodId,
+  int? current,
+) {
+  for (final m in methods) {
+    if (m['id'] == methodId && m['cashbox_id'] != null) {
+      return (m['cashbox_id'] as num).toInt();
+    }
+  }
+  if (current != null && cash.any((c) => c['id'] == current)) return current;
+  return cash.isEmpty ? null : cash.first['id'] as int;
+}
+
+/// حقلا «طريقة الدفع» و«الصندوق» كقائمة واحدة متسقة: لا تُعرض قائمة صندوق مستقلة إن كان
+/// للطريقة صندوق مرتبط (يظهر اسمه للقراءة فقط)، فلا يتباعد الصندوق عن حساب القيد.
+List<Widget> methodCashboxFields({
+  required List<Map<String, Object?>> methods,
+  required List<Map<String, Object?>> cash,
+  required int? method,
+  required int? cb,
+  required void Function(int? method, int? cashbox) onChanged,
+}) {
+  Map<String, Object?>? sel;
+  for (final m in methods) {
+    if (m['id'] == method) sel = m;
+  }
+  final linked = sel?['cashbox_id'] != null;
+  return [
+    DropdownButtonFormField<int>(
+      value: method,
+      items: [
+        for (final x in methods)
+          DropdownMenuItem(value: x['id'] as int, child: Text('${x['name']}')),
+      ],
+      onChanged: (v) => onChanged(v, cashboxForMethod(methods, cash, v, cb)),
+      decoration: const InputDecoration(labelText: 'طريقة الدفع'),
+    ),
+    if (linked)
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: InputDecorator(
+          decoration: const InputDecoration(labelText: 'الصندوق (مرتبط بطريقة الدفع)'),
+          child: Text('${sel?['cashbox_name'] ?? cb}'),
+        ),
+      )
+    else
+      DropdownButtonFormField<int>(
+        value: cb,
+        items: [
+          for (final x in cash)
+            DropdownMenuItem(value: x['id'] as int, child: Text('${x['name']}')),
+        ],
+        onChanged: (v) => onChanged(method, v),
+        decoration: const InputDecoration(labelText: 'الصندوق'),
+      ),
+  ];
+}
+
+String ledgerAccountName(Object? code) => switch ('$code') {
+  '1100' => 'بنك',
+  '1120' => 'محفظة إلكترونية',
+  _ => 'نقدي',
+};
 
 String systemName(String? v) => switch (v) {
   'diesel' => 'ديزل',
@@ -104,6 +218,21 @@ String settingDisplay(String k, String v) => switch (k) {
   'popup_notifications' => v == 'true' ? 'نعم' : 'لا',
   'reduced_motion' => v == 'true' ? 'نعم' : 'لا',
   'diesel_delivery_financial_credit' => v == 'true' ? 'نعم' : 'لا',
+  'absence_policy' => switch (v) {
+    'postpone' => 'نقل لآخر الدور',
+    'cancel' => 'إزالة من الدور',
+    'keep' || 'keep_order' => 'إبقاء الدور',
+    _ => v,
+  },
+  'week_start' => {
+    'saturday': 'السبت',
+    'sunday': 'الأحد',
+    'monday': 'الاثنين',
+    'tuesday': 'الثلاثاء',
+    'wednesday': 'الأربعاء',
+    'thursday': 'الخميس',
+    'friday': 'الجمعة',
+  }[v] ?? v,
   _ => v,
 };
 String categoryName(String v) =>
@@ -125,19 +254,71 @@ String payTypeName(String v) =>
 String targetName(String v) =>
     {'beneficiary': 'مستفيد', 'worker': 'عامل', 'partner': 'شريك'}[v] ?? v;
 
-class SaqiaApp extends StatelessWidget {
+class _NoTransitionBuilder extends PageTransitionsBuilder {
+  const _NoTransitionBuilder();
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => child;
+}
+
+ThemeData _withMotion(ThemeData t, bool reduced) => reduced
+    ? t.copyWith(
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: _NoTransitionBuilder(),
+            TargetPlatform.iOS: _NoTransitionBuilder(),
+            TargetPlatform.linux: _NoTransitionBuilder(),
+            TargetPlatform.macOS: _NoTransitionBuilder(),
+            TargetPlatform.windows: _NoTransitionBuilder(),
+            TargetPlatform.fuchsia: _NoTransitionBuilder(),
+          },
+        ),
+      )
+    : t;
+
+class SaqiaApp extends StatefulWidget {
   const SaqiaApp({super.key});
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    locale: const Locale('ar'),
-    supportedLocales: const [Locale('ar')],
-    localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    title: 'ساقية لإدارة محطة ضخ مياه الري',
-    theme: SaqiaTheme.light(),
-    darkTheme: SaqiaTheme.dark(),
-    themeMode: ThemeMode.system,
-    home: const AdminLoginPage(),
+  State<SaqiaApp> createState() => _SaqiaAppState();
+}
+
+class _SaqiaAppState extends State<SaqiaApp> {
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  /// يقرأ الإعدادات المؤثرة على الواجهة (اسم التطبيق، تقليل الحركة، التنبيهات، مصدر الوقت).
+  Future<void> _loadPrefs() async {
+    try {
+      await AppPrefs.apply(await StationRepository().settings());
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<AppPrefsData>(
+    valueListenable: AppPrefs.notifier,
+    builder: (_, p, __) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      locale: const Locale('ar'),
+      supportedLocales: const [Locale('ar')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      title: p.appName,
+      theme: _withMotion(SaqiaTheme.light(), p.reducedMotion),
+      darkTheme: _withMotion(SaqiaTheme.dark(), p.reducedMotion),
+      themeMode: ThemeMode.system,
+      builder: (ctx, child) => MediaQuery(
+        data: MediaQuery.of(ctx).copyWith(disableAnimations: p.reducedMotion),
+        child: child ?? const SizedBox.shrink(),
+      ),
+      home: const AdminLoginPage(),
+    ),
   );
 }
 
@@ -179,7 +360,7 @@ class _LoginState extends State<AdminLoginPage> {
 
   @override
   Widget build(BuildContext c) => Directionality(
-    textDirection: ui.TextDirection.rtl,
+    textDirection: TextDirection.rtl,
     child: Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -206,8 +387,8 @@ class _LoginState extends State<AdminLoginPage> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const Text(
-                      'ساقية لإدارة محطة ضخ مياه الري',
+                    Text(
+                      AppPrefs.current.appName,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 25,
@@ -329,10 +510,29 @@ class _ShellState extends State<AdminShell> {
     return s;
   }
 
+  StreamSubscription<AppAlert>? _alertSub;
+
   @override
   void initState() {
     super.initState();
     refreshCounts();
+    // النافذة المنبثقة (إن كان إعدادها مفعّلًا؛ الصوت يُشغَّل داخل AppAlerts نفسه).
+    _alertSub = AppAlerts.stream.listen((a) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('${a.title}: ${a.body}'),
+        ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _alertSub?.cancel();
+    menuSearch.dispose();
+    super.dispose();
   }
 
   Future<void> refreshCounts() async {
@@ -357,7 +557,7 @@ class _ShellState extends State<AdminShell> {
     final menu = visible.where((i) => pages[i].contains(filter)).toList();
 
     return Directionality(
-      textDirection: ui.TextDirection.rtl,
+      textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -406,9 +606,9 @@ class _ShellState extends State<AdminShell> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'ساقية',
-                              style: TextStyle(
+                            Text(
+                              AppPrefs.current.appName.split(' ').first,
+                              style: const TextStyle(
                                 fontSize: 23,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -531,7 +731,7 @@ class _ShellState extends State<AdminShell> {
         manager: role == AppRole.manager,
       ),
       2 => NewIrrigationPage(repo, manager: role == AppRole.manager),
-      3 => IrrigationsPage(repo, manager: role == AppRole.manager),
+      3 => IrrigationsPage(repo, manager: role == AppRole.manager, userId: widget.userId),
       4 => SessionsPage(repo, userId: widget.userId),
       5 => QueueBookingPage(
         repo,
@@ -955,7 +1155,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
   Future<void> pickPaymentDate(bool fromDate) async {
     final picked = await showDatePicker(
       context: context, firstDate: DateTime(2020), lastDate: DateTime(2100),
-      initialDate: fromDate ? (paymentFrom ?? DateTime.now()) : (paymentTo ?? DateTime.now()),
+      initialDate: fromDate ? (paymentFrom ?? AppClock.now()) : (paymentTo ?? AppClock.now()),
       locale: const Locale('ar'),
     );
     if (picked == null || !mounted) return;
@@ -1056,7 +1256,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
           d = (await widget.r.db.query(
             'payment_methods', where: 'id=?', whereArgs: [widget.id], limit: 1,
           )).first;
-          final receipts = await widget.r.db.query(
+          final receipts = await widget.r.db.rawQuery(
             '''SELECT p.id,p.date,p.amount,p.reference_number,p.notes,
                       COALESCE(b.name,w.name,pt.name,'غير محدد') party_name,
                       'مقبوضات' movement_group
@@ -1065,19 +1265,19 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                LEFT JOIN workers w ON w.id=p.worker_id
                LEFT JOIN partners pt ON pt.id=p.partner_id
                WHERE p.payment_method_id=? AND p.status='posted'
-               ORDER BY p.date DESC,p.id DESC''', args: [widget.id]);
-          final disbursements = await widget.r.db.query(
+               ORDER BY p.date DESC,p.id DESC''', [widget.id]);
+          final disbursements = await widget.r.db.rawQuery(
             '''SELECT e.id,e.date,e.amount,e.title description,e.notes,
                       COALESCE(e.title,'مصروف') party_name,
                       'مسلّمات' movement_group
                FROM expenses e
                WHERE e.payment_method_id=? AND e.status='posted'
-               ORDER BY e.date DESC,e.id DESC''', args: [widget.id]);
+               ORDER BY e.date DESC,e.id DESC''', [widget.id]);
           paymentReceipts = receipts;
           paymentDisbursements = disbursements;
           h = [
-            ...receipts.map((x) => <String, Object?>{...x}),
-            ...disbursements.map((x) => <String, Object?>{...x}),
+            ...receipts.map((x) => {...x}),
+            ...disbursements.map((x) => {...x}),
           ]..sort((a,b) => '${b['date']}'.compareTo('${a['date']}'));
           break;
         case 'queue':
@@ -1267,6 +1467,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             ])),
           ]),
+        ),
       );
 
   Widget historyView(BuildContext c) {
@@ -1301,7 +1502,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
     final picked = await showDatePicker(
       context: context,
       firstDate: DateTime(2020), lastDate: DateTime(2100),
-      initialDate: fromDate ? (filterFrom ?? DateTime.now()) : (filterTo ?? DateTime.now()),
+      initialDate: fromDate ? (filterFrom ?? AppClock.now()) : (filterTo ?? AppClock.now()),
       locale: const Locale('ar'),
     );
     if (!mounted || picked == null) return;
@@ -1383,7 +1584,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
         else SingleChildScrollView(scrollDirection: Axis.horizontal, child: DataTable(
           columns: const [DataColumn(label: Text('اليوم')), DataColumn(label: Text('التاريخ')), DataColumn(label: Text('التفاصيل')), DataColumn(label: Text('المدة')), DataColumn(label: Text('المستحق')), DataColumn(label: Text('المدفوع'))],
           rows: [for (final x in rows) DataRow(cells: [
-            DataCell(Text(DateFormat('EEEE','ar').format(DateTime.tryParse('${x['date']}') ?? DateTime.now()))),
+            DataCell(Text(DateFormat('EEEE','ar').format(DateTime.tryParse('${x['date']}') ?? AppClock.now()))),
             DataCell(Text('${x['date'] ?? '-'}'.split('T').first)),
             DataCell(Text('${systemName('${x['system_type']}')} • ${x['notes'] ?? 'جلسة سقي'}')),
             DataCell(Text('${x['minutes'] ?? 0} دقيقة')),
@@ -1411,7 +1612,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
     final meta = fieldsFor(['date', 'created_at', 'scheduled_start', 'scheduled_end', 'reference_number', 'description', 'memo', 'notes', 'cancel_reason']);
 
     return Directionality(
-      textDirection: ui.TextDirection.rtl,
+      textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: Theme.of(c).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -1529,7 +1730,7 @@ class _TimelineItem extends StatelessWidget {
           if (amount.isNotEmpty) Text(amount, style: const TextStyle(fontWeight: FontWeight.w900)),
         ]),
       )),
-    ]),
+    ],
   );
 }
 
@@ -1768,105 +1969,11 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
           child: rows.isEmpty && !loading
               ? const EmptyView('لا توجد بيانات مطابقة')
               : LayoutBuilder(builder: (_, box) {
-                  final cols = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
-                  final gap = 12.0;
-                  final width = (box.maxWidth - gap * (cols - 1)) / cols;
-                  return SingleChildScrollView(
-                    child: Wrap(
-                      spacing: gap,
-                      runSpacing: gap,
-                      children: rows.map((x) {
-                        final balance = (x['balance'] as num?)?.round() ?? 0;
-                        return SizedBox(
-                          width: width,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(24),
-                            onTap: () => details(x),
-                            onLongPress: () => showModalBottomSheet<void>(
-                              context: context,
-                              showDragHandle: true,
-                              builder: (bc) => SafeArea(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    ListTile(
-                                      leading: const Icon(Icons.edit_outlined),
-                                      title: const Text('تعديل معلومات المستخدم'),
-                                      onTap: () {
-                                        Navigator.pop(bc);
-                                        edit(x);
-                                      },
-                                    ),
-                                    if (widget.manager)
-                                      ListTile(
-                                        leading: const Icon(Icons.delete_outline, color: Colors.red),
-                                        title: const Text('حذف'),
-                                        onTap: () {
-                                          Navigator.pop(bc);
-                                          remove(x);
-                                        },
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            child: Card(
-                              margin: EdgeInsets.zero,
-                              child: Padding(
-                                padding: const EdgeInsets.all(18),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const CircleAvatar(child: Icon(Icons.agriculture_rounded)),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            '${x['name']}',
-                                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-                                          ),
-                                        ),
-                                        PopupMenuButton<String>(
-                                          onSelected: (v) {
-                                            if (v == 'edit') edit(x);
-                                            if (v == 'delete' && widget.manager) remove(x);
-                                          },
-                                          itemBuilder: (_) => const [
-                                            PopupMenuItem(value: 'edit', child: Text('تعديل معلومات المستخدم')),
-                                            PopupMenuItem(value: 'delete', child: Text('حذف')),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      '${x['phone'] ?? 'بدون هاتف'} • ${x['jerba_number'] ?? 'بدون رقم جربة'}',
-                                      style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      AccountingCalculations.balanceLabel(balance),
-                                      style: TextStyle(fontWeight: FontWeight.w900, color: balance > 0 ? Colors.red : _green),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: OutlinedButton.icon(
-                                        onPressed: () => details(x),
-                                        icon: const Icon(Icons.open_in_new),
-                                        label: const Text('التفاصيل'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  );
+                  final cols=box.maxWidth>=1100?3:box.maxWidth>=720?2:1; final gap=12.0; final w=(box.maxWidth-gap*(cols-1))/cols;
+                  return SingleChildScrollView(child:Wrap(spacing:gap,runSpacing:gap,children:rows.map((x){
+                    final b=(x['balance'] as num?)?.round()??0;
+                    return SizedBox(width:w,child:InkWell(borderRadius:BorderRadius.circular(24),onTap:()=>details(x),onLongPress:()=>showModalBottomSheet(context:context,showDragHandle:true,builder:(bc)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('تعديل معلومات المستخدم'),onTap:(){Navigator.pop(bc);edit(x);}),if(widget.manager)ListTile(leading:const Icon(Icons.delete_outline,color:Colors.red),title:const Text('حذف'),onTap:(){Navigator.pop(bc);remove(x);})]))),child:Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[CircleAvatar(child:const Icon(Icons.agriculture_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(x);if(v=='delete'&&widget.manager)remove(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),const SizedBox(height:10),Text('${x['phone']??'بدون هاتف'} • ${x['jerba_number']??'بدون رقم جربة'}',style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:10),Text(AccountingCalculations.balanceLabel(b),style:TextStyle(fontWeight:FontWeight.w900,color:b>0?Colors.red:_green)),const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:()=>details(x),icon:const Icon(Icons.open_in_new),label:const Text('التفاصيل')))]))));
+                  }).toList()));
                 }),
         ),
       ],
@@ -1893,8 +2000,8 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       history = [];
   int? bid, workerId, partnerId, pumpId, queueId, bookingId, sessionId;
   String partyType = 'beneficiary', type = 'diesel', queueType = 'circular', search = '';
-  DateTime start = DateTime.now(),
-      end = DateTime.now().add(const Duration(hours: 1));
+  DateTime start = AppClock.now(),
+      end = AppClock.now().add(const Duration(hours: 1));
   final paid = TextEditingController(text: '0'),
       reason = TextEditingController();
   final List<Map<String, DateTime>> cloudPeriods = [];
@@ -1904,6 +2011,8 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       useSession = false;
   double beneficiaryDiesel = 0;
   Map<String, String> settings = {};
+  /// إعداد «اشتراط تجاوز المدير»: مفعّل = المدير وحده يتجاوز مدة الانتظار.
+  bool get overrideManagerOnly => (settings['manager_override_required'] ?? 'true') == 'true';
   List<Map<String, Object?>> methods = [];
   int? payMethod;
   @override
@@ -2141,7 +2250,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       msg('اختر جلسة سقي عند تفعيل استخدام وقت الجلسة');
       return;
     }
-    if (managerOverride && !widget.manager) {
+    if (managerOverride && overrideManagerOnly && !widget.manager) {
       msg('تجاوز مدة الانتظار متاح للمدير فقط');
       return;
     }
@@ -2188,8 +2297,8 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
   void newOperation() {
     setState(() {
       saved = false;
-      start = DateTime.now();
-      end = DateTime.now().add(const Duration(hours: 1));
+      start = AppClock.now();
+      end = AppClock.now().add(const Duration(hours: 1));
       paid.text = '0';
       cloudPeriods.clear();
       reason.clear();
@@ -2459,7 +2568,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                       decoration: const InputDecoration(labelText: 'طريقة الدفع'),
                     ),
                   ),
-                if (widget.manager)
+                if (widget.manager || !overrideManagerOnly)
                   SizedBox(
                     width: 240,
                     child: Column(
@@ -2662,7 +2771,8 @@ class FormDialog extends StatelessWidget {
 class IrrigationsPage extends StatefulWidget {
   final StationRepository r;
   final bool manager;
-  const IrrigationsPage(this.r, {required this.manager, super.key});
+  final int userId;
+  const IrrigationsPage(this.r, {required this.manager, required this.userId, super.key});
   @override
   State<IrrigationsPage> createState() => _IrrigationsState();
 }
@@ -2704,6 +2814,26 @@ class _IrrigationsState extends State<IrrigationsPage> {
   String _timeOf(Object? value) {
     final d = DateTime.tryParse('$value');
     return d == null ? '-' : DateFormat('HH:mm').format(d);
+  }
+
+  Future<void> cancelIrrigationRow(Map<String, Object?> x) async {
+    final reason = await askReason(
+      context,
+      'إلغاء السقاية',
+      message:
+          'سيُعكس القيد المحاسبي وتُلغى الدفعة المرافقة (إن وُجدت) ويُعاد أثرها على الصندوق. المبلغ: ${money(x['total_amount'])}',
+    );
+    if (reason == null || !mounted) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.accounting.cancelIrrigation(x['id'] as int, widget.userId, reason),
+    )) return;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إلغاء السقاية وعكس أثرها')),
+      );
+    }
+    await load();
   }
 
   @override
@@ -2810,6 +2940,7 @@ class _IrrigationsState extends State<IrrigationsPage> {
                             DataColumn(label: Text('المبلغ')),
                             DataColumn(label: Text('الغيم')),
                             DataColumn(label: Text('حالة الخصم')),
+                            DataColumn(label: Text('إجراء')),
                           ],
                           rows: [
                             for (final x in filtered)
@@ -2830,6 +2961,13 @@ class _IrrigationsState extends State<IrrigationsPage> {
                                     label: Text(
                                       ((x['cloud_minutes'] as num?)?.round() ?? 0) > 0 ? 'تم الخصم' : 'لا يوجد خصم',
                                     ),
+                                  ),
+                                ),
+                              DataCell(
+                                  IconButton(
+                                    tooltip: 'إلغاء السقاية',
+                                    onPressed: () => cancelIrrigationRow(x),
+                                    icon: const Icon(Icons.cancel_outlined, color: Colors.red),
                                   ),
                                 ),
                               ]),
@@ -2859,7 +2997,7 @@ class _SessionsState extends State<SessionsPage> {
   String q = '';
   String queueType = 'circular';
   Timer? ticker;
-  DateTime now = DateTime.now();
+  DateTime now = AppClock.now();
 
   Future<void> load() async {
     try {
@@ -2892,7 +3030,7 @@ class _SessionsState extends State<SessionsPage> {
     super.initState();
     load();
     ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => now = DateTime.now());
+      if (mounted) setState(() => now = AppClock.now());
     });
   }
 
@@ -3215,7 +3353,7 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true && id != null) {
-      await widget.r.enqueue(id!, userId: widget.userId);
+      await widget.r.enqueue(id, userId: widget.userId);
       await load();
     }
   }
@@ -3263,7 +3401,7 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true && id != null) {
-      if (!await runGuarded(context, () => widget.r.createBooking(id!, n.text, userId: widget.userId))) return;
+      if (!await runGuarded(context, () => widget.r.createBooking(id, n.text, userId: widget.userId))) return;
       await load();
     }
   }
@@ -3315,9 +3453,9 @@ class _QueueState extends State<QueueBookingPage> {
     if (st == 'scheduled' || st == 'accepted') {
       final d = await showDatePicker(
         context: context,
-        firstDate: DateTime.now(),
+        firstDate: AppClock.now(),
         lastDate: DateTime(2100),
-        initialDate: DateTime.now(),
+        initialDate: AppClock.now(),
         locale: const Locale('ar'),
       );
       if (d != null) {
@@ -3331,15 +3469,52 @@ class _QueueState extends State<QueueBookingPage> {
         }
       }
     }
-    await widget.r.reviewBooking(
-      x['id'] as int,
-      status: st,
-      reviewer: widget.userId,
-      reason: reason.text,
-      start: start,
-      end: start?.add(const Duration(hours: 1)),
-    );
+    if (st == 'cancelled' && reason.text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('سبب الإلغاء مطلوب')),
+        );
+      }
+      return;
+    }
+    if (!await runGuarded(
+      context,
+      () => widget.r.reviewBooking(
+        x['id'] as int,
+        status: st,
+        reviewer: widget.userId,
+        reason: reason.text,
+        start: start,
+        end: start?.add(const Duration(hours: 1)),
+      ),
+    )) return;
     await load();
+  }
+
+  Future<void> cancelBooking(Map<String, Object?> x) async {
+    final reason = await askReason(context, 'إلغاء حجز ${x['beneficiary_name']}');
+    if (reason == null || !mounted) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.reviewBooking(x['id'] as int, status: 'cancelled', reviewer: widget.userId, reason: reason),
+    )) return;
+    await load();
+  }
+
+  Future<void> editBookingNotes(Map<String, Object?> x) async {
+    final c = TextEditingController(text: '${x['notes'] ?? ''}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => FormDialog(
+        title: 'تعديل ملاحظات الحجز',
+        children: [TextField(controller: c, decoration: const InputDecoration(labelText: 'ملاحظات'))],
+        onSave: () => Navigator.pop(d, true),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(context, () => widget.r.updateBookingNotes(x['id'] as int, c.text, userId: widget.userId))) return;
+      await load();
+    }
   }
 
   Future<void> postpone(int id) async {
@@ -3440,6 +3615,7 @@ class _QueueState extends State<QueueBookingPage> {
                 _statusChip('قيد المراجعة', 'under_review'),
                 _statusChip('محدد الموعد', 'scheduled'),
                 _statusChip('مكتمل', 'completed'),
+                _statusChip('ملغى', 'cancelled'),
               ],
             ),
             const SizedBox(height: 14),
@@ -3481,15 +3657,27 @@ class _QueueState extends State<QueueBookingPage> {
                                   ),
                                   icon: const Icon(Icons.info_outline_rounded),
                                 ),
-                                if (isBookingMode)
+                                if (isBookingMode) ...[
+                                  if (!const {'completed', 'cancelled'}.contains('${entries[i]['status']}')) ...[
+                                    IconButton(
+                                      tooltip: 'إدارة الدور',
+                                      onPressed: () => review(entries[i]),
+                                      icon: const Icon(Icons.edit_calendar_rounded),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'تعديل الملاحظات',
+                                      onPressed: () => editBookingNotes(entries[i]),
+                                      icon: const Icon(Icons.edit_note_rounded),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'إلغاء الحجز',
+                                      onPressed: () => cancelBooking(entries[i]),
+                                      icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                                    ),
+                                  ],
+                                ] else ...[
                                   IconButton(
-                                    tooltip: 'إدارة الدور',
-                                    onPressed: () => review(entries[i]),
-                                    icon: const Icon(Icons.edit_calendar_rounded),
-                                  )
-                                else ...[
-                                  IconButton(
-                                    tooltip: 'تأجيل',
+                                    tooltip: 'غياب / تأجيل (حسب سياسة الغياب)',
                                     onPressed: () => postpone(entries[i]['id'] as int),
                                     icon: const Icon(Icons.pause_rounded),
                                   ),
@@ -3678,7 +3866,7 @@ class _DieselState extends State<DieselPage> {
           kind: kind,
           liters: double.tryParse(liters.text) ?? 0,
           unitPrice: int.tryParse(price.text) ?? 0,
-          date: DateTime.now(),
+          date: AppClock.now(),
           cashboxId: cb,
           userId: widget.userId,
           notes: notes.text,
@@ -3693,6 +3881,39 @@ class _DieselState extends State<DieselPage> {
   void msg(String x) {
     if (mounted)
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(x)));
+  }
+
+  Future<void> cancelMove(Map<String, Object?> x) async {
+    final reason = await askReason(
+      context,
+      'إلغاء حركة الديزل',
+      message: 'ستُعكس قيودها ويُردّ أثرها على المخزون والصندوق. ${statusName(x['kind'])} — ${x['liters']} لتر',
+    );
+    if (reason == null || !mounted) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.accounting.cancelDieselMovement(x['id'] as int, widget.userId, reason),
+    )) return;
+    await load();
+  }
+
+  Future<void> editMoveNotes(Map<String, Object?> x) async {
+    final c = TextEditingController(text: '${x['notes'] ?? ''}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => FormDialog(
+        title: 'تعديل ملاحظات الحركة',
+        children: [
+          TextField(controller: c, decoration: const InputDecoration(labelText: 'ملاحظات')),
+          const Text('الكمية والسعر والنوع تُصحَّح بإلغاء الحركة وإعادة إدخالها.'),
+        ],
+        onSave: () => Navigator.pop(d, true),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(context, () => widget.r.accounting.updateDieselNotes(x['id'] as int, c.text, widget.userId))) return;
+      await load();
+    }
   }
 
   bool enabled = true;
@@ -3713,7 +3934,7 @@ class _DieselState extends State<DieselPage> {
                 10;
             if (!await runGuarded(context, () => widget.r.setSetting(
               'diesel_warning_snoozed_until',
-              DateTime.now()
+              AppClock.now()
                   .add(Duration(minutes: m.round()))
                   .toIso8601String(),
             ))) return;
@@ -3762,8 +3983,17 @@ class _DieselState extends State<DieselPage> {
                     title: Text(
                       '${x['beneficiary_name'] ?? 'المخزون'} • ${statusName(x['kind'])}',
                     ),
-                    subtitle: Text('${x['liters']} لتر • ${x['date']}'),
-                    trailing: Text(money(x['amount'])),
+                    subtitle: Text('${x['liters']} لتر • ${x['date']}${(x['notes'] ?? '').toString().isEmpty ? '' : ' • ${x['notes']}'}'),
+                    trailing: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(money(x['amount'])),
+                        if (x['irrigation_id'] == null) ...[
+                          IconButton(tooltip: 'تعديل الملاحظات', onPressed: () => editMoveNotes(x), icon: const Icon(Icons.edit_note_rounded)),
+                          IconButton(tooltip: 'إلغاء الحركة', onPressed: () => cancelMove(x), icon: const Icon(Icons.cancel_outlined, color: Colors.red)),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
             ],
@@ -3823,7 +4053,7 @@ class _PaymentsState extends State<PaymentsPage> {
         : ps;
     int? party = list.isEmpty ? null : list.first['id'] as int;
     int? method = methods.isEmpty ? null : methods.first['id'] as int;
-    int? cb = cash.isEmpty ? null : cash.first['id'] as int;
+    int? cb = cashboxForMethod(methods, cash, method, null);
     final amount = TextEditingController(),
         note = TextEditingController(),
         reference = TextEditingController();
@@ -3885,29 +4115,15 @@ class _PaymentsState extends State<PaymentsPage> {
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(labelText: 'المبلغ'),
                 ),
-                DropdownButtonFormField<int>(
-                  value: method,
-                  items: [
-                    for (final x in methods)
-                      DropdownMenuItem(
-                        value: x['id'] as int,
-                        child: Text('${x['name']}'),
-                      ),
-                  ],
-                  onChanged: (v) => s(() => method = v),
-                  decoration: const InputDecoration(labelText: 'طريقة الدفع'),
-                ),
-                DropdownButtonFormField<int>(
-                  value: cb,
-                  items: [
-                    for (final x in cash)
-                      DropdownMenuItem(
-                        value: x['id'] as int,
-                        child: Text('${x['name']}'),
-                      ),
-                  ],
-                  onChanged: (v) => s(() => cb = v),
-                  decoration: const InputDecoration(labelText: 'الصندوق'),
+                ...methodCashboxFields(
+                  methods: methods,
+                  cash: cash,
+                  method: method,
+                  cb: cb,
+                  onChanged: (m, b) => s(() {
+                    method = m;
+                    cb = b;
+                  }),
                 ),
                 TextField(
                   controller: reference,
@@ -3953,12 +4169,6 @@ class _PaymentsState extends State<PaymentsPage> {
             notes: note.text,
           );
           final bal = await widget.r.accounting.beneficiaryBalance(party!);
-          await widget.r.notify(
-            beneficiaryId: party!,
-            type: 'payment',
-            title: 'تسجيل دفعة',
-            body: 'تم تسجيل دفعة بمبلغ $a ريال',
-          );
           await widget.r.notify(
             beneficiaryId: party!,
             type: 'balance',
@@ -4011,6 +4221,22 @@ class _PaymentsState extends State<PaymentsPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(x)));
   }
 
+  Future<void> cancelPay(Map<String, Object?> x) async {
+    final reason = await askReason(
+      context,
+      'إلغاء الدفعة',
+      message:
+          'سيُعكس القيد المحاسبي ويُعدَّل رصيد الصندوق. ${x['party_name']} — ${money(x['amount'])}',
+    );
+    if (reason == null || !mounted) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.accounting.cancelPayment(x['id'] as int, widget.userId, reason),
+    )) return;
+    msg('تم إلغاء الدفعة وعكس أثرها');
+    await load();
+  }
+
   @override
   Widget build(c) => PageFrame(
     title: 'المدفوعات',
@@ -4059,14 +4285,23 @@ class _PaymentsState extends State<PaymentsPage> {
                   child: ListTile(
                     title: Text('${x['party_name']}'),
                     subtitle: Text(
-                      '${x['date']} • ${x['method_name']} • ${x['cashbox_name']}',
+                      '${x['date']} • ${x['method_name']} • ${x['cashbox_name']} • ${statusName(x['status'])}',
                     ),
                     trailing: Wrap(
                       children: [
                         Text(
                           money(x['amount']),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            decoration: x['status'] == 'cancelled' ? TextDecoration.lineThrough : null,
+                          ),
                         ),
+                        if (x['status'] == 'posted')
+                          IconButton(
+                            tooltip: 'إلغاء الدفعة',
+                            onPressed: () => cancelPay(x),
+                            icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                          ),
                         IconButton(
                           tooltip: 'إيصال',
                           onPressed: () async {
@@ -4124,22 +4359,38 @@ class _CashboxesState extends State<CashboxesPage> {
   Future<void> addBox() async {
     final n = TextEditingController();
     final o = TextEditingController(text: '0');
+    String ledger = 'cash';
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => FormDialog(
-        title: 'إضافة صندوق',
-        children: [
-          TextField(
-            controller: n,
-            decoration: const InputDecoration(labelText: 'اسم الصندوق *'),
-          ),
-          TextField(
-            controller: o,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'الرصيد الافتتاحي'),
-          ),
-        ],
-        onSave: () => Navigator.pop(context, n.text.trim().isNotEmpty),
+      builder: (_) => StatefulBuilder(
+        builder: (c, st) => FormDialog(
+          title: 'إضافة صندوق',
+          children: [
+            TextField(
+              controller: n,
+              decoration: const InputDecoration(labelText: 'اسم الصندوق *'),
+            ),
+            DropdownButtonFormField<String>(
+              value: ledger,
+              items: const [
+                DropdownMenuItem(value: 'cash', child: Text('نقدي (حساب الصندوق 1000)')),
+                DropdownMenuItem(value: 'bank', child: Text('بنك (حساب 1100)')),
+                DropdownMenuItem(value: 'wallet', child: Text('محفظة إلكترونية (حساب 1120)')),
+              ],
+              onChanged: (v) => st(() => ledger = v!),
+              decoration: const InputDecoration(labelText: 'نوع الصندوق'),
+            ),
+            TextField(
+              controller: o,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'الرصيد الافتتاحي',
+                helperText: 'يُقيَّد تلقائيًا في الأستاذ مقابل الأرصدة الافتتاحية',
+              ),
+            ),
+          ],
+          onSave: () => Navigator.pop(c, n.text.trim().isNotEmpty),
+        ),
       ),
     );
     if (ok == true) {
@@ -4147,10 +4398,97 @@ class _CashboxesState extends State<CashboxesPage> {
         name: n.text.trim(),
         openingBalance: int.tryParse(o.text) ?? 0,
         currency: 'YER',
+        ledgerAccountCode: switch (ledger) { 'bank' => '1100', 'wallet' => '1120', _ => '1000' },
         userId: widget.userId,
       ))) return;
       await load();
     }
+  }
+
+  Future<void> editBox(Map<String, Object?> x) async {
+    final n = TextEditingController(text: '${x['name']}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => FormDialog(
+        title: 'تعديل الصندوق',
+        children: [
+          TextField(controller: n, decoration: const InputDecoration(labelText: 'اسم الصندوق *')),
+          const Text('الرصيد الافتتاحي وحساب الصندوق لا يُعدَّلان بعد الإنشاء؛ يُصحَّح الرصيد بتحويل.'),
+        ],
+        onSave: () => Navigator.pop(d, n.text.trim().isNotEmpty),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(context, () => widget.r.updateCashbox(x['id'] as int, name: n.text, userId: widget.userId))) return;
+      await load();
+    }
+  }
+
+  Future<void> deleteBox(Map<String, Object?> x) async {
+    final reason = await askReason(context, 'حذف الصندوق «${x['name']}»',
+        message: 'يُرفض الحذف إن كان رصيده غير صفر أو مرتبطًا بطرق دفع مفعّلة.');
+    if (reason == null || !mounted) return;
+    if (!await runGuarded(context, () => widget.r.deleteCashbox(x['id'] as int, widget.userId, reason))) return;
+    await load();
+  }
+
+  Future<void> editMethod(Map<String, Object?> x) async {
+    final n = TextEditingController(text: '${x['name']}'),
+        a = TextEditingController(text: '${x['account_number'] ?? ''}'),
+        b = TextEditingController(text: '${x['bank_name'] ?? ''}');
+    String type = '${x['type']}';
+    int? cb = (x['cashbox_id'] as num?)?.toInt();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (c, st) => FormDialog(
+          title: 'تعديل طريقة الدفع',
+          children: [
+            TextField(controller: n, decoration: const InputDecoration(labelText: 'اسم طريقة الدفع *')),
+            DropdownButtonFormField<String>(
+              value: type,
+              items: [
+                for (final t in ['cash', 'check', 'bank_transfer', 'wallet', 'other'])
+                  DropdownMenuItem(value: t, child: Text(paymentTypeName(t))),
+              ],
+              onChanged: (v) => st(() => type = v!),
+              decoration: const InputDecoration(labelText: 'نوع الطريقة'),
+            ),
+            TextField(controller: a, decoration: const InputDecoration(labelText: 'رقم الحساب')),
+            TextField(controller: b, decoration: const InputDecoration(labelText: 'اسم البنك')),
+            DropdownButtonFormField<int>(
+              value: boxes.any((e) => e['id'] == cb) ? cb : null,
+              items: [
+                for (final e in boxes) DropdownMenuItem(value: e['id'] as int, child: Text('${e['name']}')),
+              ],
+              onChanged: (v) => st(() => cb = v),
+              decoration: const InputDecoration(labelText: 'الصندوق المرتبط'),
+            ),
+          ],
+          onSave: () => Navigator.pop(c, n.text.trim().isNotEmpty),
+        ),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(context, () => widget.r.updatePaymentMethod(
+        x['id'] as int,
+        name: n.text,
+        type: type,
+        cashboxId: cb,
+        accountNumber: a.text,
+        bankName: b.text,
+        userId: widget.userId,
+      ))) return;
+      await load();
+    }
+  }
+
+  Future<void> deleteMethod(Map<String, Object?> x) async {
+    final reason = await askReason(context, 'حذف طريقة الدفع «${x['name']}»',
+        message: 'تبقى الدفعات السابقة مرتبطة بها، ولا تظهر في الاختيارات الجديدة.');
+    if (reason == null || !mounted) return;
+    if (!await runGuarded(context, () => widget.r.deletePaymentMethod(x['id'] as int, widget.userId, reason))) return;
+    await load();
   }
 
   Future<void> addMethod() async {
@@ -4289,7 +4627,7 @@ class _CashboxesState extends State<CashboxesPage> {
           from: f,
           to: t,
           amount: int.parse(a.text),
-          date: DateTime.now(),
+          date: AppClock.now(),
           userId: widget.userId,
         );
         await load();
@@ -4351,8 +4689,15 @@ class _CashboxesState extends State<CashboxesPage> {
                 ),
               ),
               title: Text('${x['name']}'),
-              subtitle: Text('الرصيد الحالي: ${money(x['current_balance'])}'),
-              trailing: const Icon(Icons.open_in_new),
+              subtitle: Text('الرصيد الحالي: ${money(x['current_balance'])} • ${ledgerAccountName(x['ledger_account_code'])}'),
+              trailing: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  IconButton(tooltip: 'تعديل', onPressed: () => editBox(x), icon: const Icon(Icons.edit_outlined)),
+                  IconButton(tooltip: 'حذف', onPressed: () => deleteBox(x), icon: const Icon(Icons.delete_outline, color: Colors.red)),
+                  const Icon(Icons.open_in_new),
+                ],
+              ),
             ),
           const SizedBox(height: 15),
           const Text(
@@ -4374,9 +4719,16 @@ class _CashboxesState extends State<CashboxesPage> {
               ),
               title: Text('${x['name']}'),
               subtitle: Text(
-                '${paymentTypeName('${x['type']}')} • ${x['account_number'] ?? ''}',
+                '${paymentTypeName('${x['type']}')} • ${x['account_number'] ?? ''} • الصندوق: ${x['cashbox_name'] ?? 'غير مرتبط'}',
               ),
-              trailing: const Icon(Icons.open_in_new),
+              trailing: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  IconButton(tooltip: 'تعديل', onPressed: () => editMethod(x), icon: const Icon(Icons.edit_outlined)),
+                  IconButton(tooltip: 'حذف', onPressed: () => deleteMethod(x), icon: const Icon(Icons.delete_outline, color: Colors.red)),
+                  const Icon(Icons.open_in_new),
+                ],
+              ),
             ),
           const Divider(),
           const Text(
@@ -4427,8 +4779,8 @@ class _ExpensesState extends State<ExpensesPage> {
 
   Future<void> add() async {
     String cat = 'other';
-    int? cb = cash.isEmpty ? null : cash.first['id'] as int,
-        pm = methods.isEmpty ? null : methods.first['id'] as int;
+    int? pm = methods.isEmpty ? null : methods.first['id'] as int;
+    int? cb = cashboxForMethod(methods, cash, pm, null);
     final title = TextEditingController(),
         amount = TextEditingController(),
         note = TextEditingController();
@@ -4469,29 +4821,15 @@ class _ExpensesState extends State<ExpensesPage> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'المبلغ'),
               ),
-              DropdownButtonFormField<int>(
-                value: pm,
-                items: [
-                  for (final x in methods)
-                    DropdownMenuItem(
-                      value: x['id'] as int,
-                      child: Text('${x['name']}'),
-                    ),
-                ],
-                onChanged: (v) => s(() => pm = v),
-                decoration: const InputDecoration(labelText: 'طريقة الدفع'),
-              ),
-              DropdownButtonFormField<int>(
-                value: cb,
-                items: [
-                  for (final x in cash)
-                    DropdownMenuItem(
-                      value: x['id'] as int,
-                      child: Text('${x['name']}'),
-                    ),
-                ],
-                onChanged: (v) => s(() => cb = v),
-                decoration: const InputDecoration(labelText: 'الصندوق'),
+              ...methodCashboxFields(
+                methods: methods,
+                cash: cash,
+                method: pm,
+                cb: cb,
+                onChanged: (m, b) => s(() {
+                  pm = m;
+                  cb = b;
+                }),
               ),
               TextField(
                 controller: note,
@@ -4524,7 +4862,7 @@ class _ExpensesState extends State<ExpensesPage> {
           category: cat,
           title: title.text,
           amount: int.parse(amount.text),
-          date: DateTime.now(),
+          date: AppClock.now(),
           paymentMethodId: pm!,
           cashboxId: cb!,
           userId: widget.userId,
@@ -4540,6 +4878,21 @@ class _ExpensesState extends State<ExpensesPage> {
   void msg(String x) {
     if (mounted)
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(x)));
+  }
+
+  Future<void> cancelExp(Map<String, Object?> x) async {
+    final reason = await askReason(
+      context,
+      'إلغاء المصروف',
+      message: 'سيُعكس القيد ويُعاد المبلغ إلى الصندوق. ${x['title']} — ${money(x['amount'])}',
+    );
+    if (reason == null || !mounted) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.accounting.cancelExpense(x['id'] as int, widget.userId, reason),
+    )) return;
+    msg('تم إلغاء المصروف وعكس أثره');
+    await load();
   }
 
   @override
@@ -4574,7 +4927,23 @@ class _ExpensesState extends State<ExpensesPage> {
                     subtitle: Text(
                       '${categoryName('${x['category']}')} • ${x['date']} • ${statusName(x['status'])}',
                     ),
-                    trailing: Text(money(x['amount'])),
+                    trailing: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          money(x['amount']),
+                          style: TextStyle(
+                            decoration: x['status'] == 'cancelled' ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                        if (x['status'] == 'posted')
+                          IconButton(
+                            tooltip: 'إلغاء المصروف',
+                            onPressed: () => cancelExp(x),
+                            icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
             ],
@@ -4816,88 +5185,14 @@ class _WorkersState extends State<WorkersPage> {
             child: filtered.isEmpty
                 ? const EmptyView('لا يوجد عمال مطابقون')
                 : LayoutBuilder(builder: (_, box) {
-                    final columns = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
-                    final gap = 12.0;
-                    final width = (box.maxWidth - gap * (columns - 1)) / columns;
-                    return SingleChildScrollView(
-                      child: Wrap(
-                        spacing: gap,
-                        runSpacing: gap,
-                        children: filtered.map((x) {
-                          final balance = (x['balance'] as num?)?.round() ?? 0;
-                          return SizedBox(
-                            width: width,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(24),
-                              onTap: () => Navigator.push(
-                                c,
-                                MaterialPageRoute(
-                                  builder: (_) => RecordDetailsPage(
-                                    widget.r,
-                                    kind: 'worker',
-                                    id: x['id'] as int,
-                                    title: 'تفاصيل العامل',
-                                  ),
-                                ),
-                              ),
-                              onLongPress: () => workerActions(x),
-                              child: Card(
-                                margin: EdgeInsets.zero,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(18),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const CircleAvatar(child: Icon(Icons.engineering_rounded)),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              '${x['name']}',
-                                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-                                            ),
-                                          ),
-                                          PopupMenuButton<String>(
-                                            onSelected: (v) {
-                                              if (v == 'edit') editWorker(x);
-                                              if (v == 'delete') deleteWorker(x);
-                                            },
-                                            itemBuilder: (_) => const [
-                                              PopupMenuItem(value: 'edit', child: Text('تعديل معلومات المستخدم')),
-                                              PopupMenuItem(value: 'delete', child: Text('حذف')),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        payTypeName('${x['pay_type']}'),
-                                        style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        AccountingCalculations.balanceLabel(balance),
-                                        style: const TextStyle(fontWeight: FontWeight.w900),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: OutlinedButton.icon(
-                                          onPressed: () => transaction(x),
-                                          icon: const Icon(Icons.account_balance_wallet_outlined),
-                                          label: const Text('حركة العامل'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    );
+                    final cols = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
+                    final gap = 12.0; final w = (box.maxWidth-gap*(cols-1))/cols;
+                    return SingleChildScrollView(child: Wrap(spacing:gap,runSpacing:gap,children:[for(final x in filtered) SizedBox(width:w,child:InkWell(
+                      borderRadius:BorderRadius.circular(24),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>RecordDetailsPage(widget.r,kind:'worker',id:x['id'] as int,title:'تفاصيل العامل'))),onLongPress:()=>workerActions(x),
+                      child: Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                        Row(children:[CircleAvatar(child:const Icon(Icons.engineering_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')editWorker(x);if(v=='delete')deleteWorker(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),
+                        const SizedBox(height:12),Text(payTypeName('${x['pay_type']}'),style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:8),Text(AccountingCalculations.balanceLabel((x['balance'] as num?)?.round() ?? 0),style:const TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:12),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:()=>transaction(x),icon:const Icon(Icons.account_balance_wallet_outlined),label:const Text('حركة العامل'))
+                      ])))))]));
                   }),
           ),
         ],
@@ -5033,7 +5328,7 @@ class _PartnersState extends State<PartnersPage> {
         await widget.r.accounting.createPartnerShare(
           partnerId: x['id'] as int,
           amount: int.parse(amount.text),
-          date: DateTime.now(),
+          date: AppClock.now(),
           percentage: double.tryParse(pct.text),
           userId: widget.userId,
         );
@@ -5171,101 +5466,8 @@ class _PartnersState extends State<PartnersPage> {
             child: filtered.isEmpty
                 ? const EmptyView('لا يوجد شركاء مطابقون')
                 : LayoutBuilder(builder: (_, box) {
-                    final columns = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
-                    final gap = 12.0;
-                    final width = (box.maxWidth - gap * (columns - 1)) / columns;
-                    return SingleChildScrollView(
-                      child: Wrap(
-                        spacing: gap,
-                        runSpacing: gap,
-                        children: filtered.map((x) {
-                          final balance = (x['balance'] as num?)?.round() ?? 0;
-                          return SizedBox(
-                            width: width,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(24),
-                              onTap: () => Navigator.push(
-                                c,
-                                MaterialPageRoute(
-                                  builder: (_) => RecordDetailsPage(
-                                    widget.r,
-                                    kind: 'partner',
-                                    id: x['id'] as int,
-                                    title: 'تفاصيل الشريك',
-                                  ),
-                                ),
-                              ),
-                              onLongPress: () => partnerActions(x),
-                              child: Card(
-                                margin: EdgeInsets.zero,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(18),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const CircleAvatar(child: Icon(Icons.handshake_rounded)),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              '${x['name']}',
-                                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-                                            ),
-                                          ),
-                                          PopupMenuButton<String>(
-                                            onSelected: (v) {
-                                              if (v == 'edit') editPartner(x);
-                                              if (v == 'delete') deletePartner(x);
-                                            },
-                                            itemBuilder: (_) => const [
-                                              PopupMenuItem(value: 'edit', child: Text('تعديل معلومات المستخدم')),
-                                              PopupMenuItem(value: 'delete', child: Text('حذف')),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        x['ownership_mode'] == 'percentage'
-                                            ? 'نسبة ملكية ${x['ownership_percentage'] ?? 0}%'
-                                            : 'عدد حصص ${x['shares_count'] ?? 0}',
-                                        style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        AccountingCalculations.balanceLabel(balance),
-                                        style: const TextStyle(fontWeight: FontWeight.w900),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: OutlinedButton.icon(
-                                              onPressed: () => share(x),
-                                              icon: const Icon(Icons.add_chart),
-                                              label: const Text('استحقاق'),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: OutlinedButton.icon(
-                                              onPressed: () => pay(x),
-                                              icon: const Icon(Icons.payments),
-                                              label: const Text('دفع'),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    );
+                    final cols=box.maxWidth>=1100?3:box.maxWidth>=720?2:1; final gap=12.0; final w=(box.maxWidth-gap*(cols-1))/cols;
+                    return SingleChildScrollView(child:Wrap(spacing:gap,runSpacing:gap,children:[for(final x in filtered) SizedBox(width:w,child:InkWell(borderRadius:BorderRadius.circular(24),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>RecordDetailsPage(widget.r,kind:'partner',id:x['id'] as int,title:'تفاصيل الشريك'))),onLongPress:()=>partnerActions(x),child:Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[CircleAvatar(child:const Icon(Icons.handshake_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')editPartner(x);if(v=='delete')deletePartner(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),const SizedBox(height:12),Text(x['ownership_mode']=='percentage'?'نسبة ملكية ${x['ownership_percentage']??0}%':'عدد حصص ${x['shares_count']??0}',style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:8),Text(AccountingCalculations.balanceLabel((x['balance'] as num?)?.round() ?? 0),style:const TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:12),Row(children:[Expanded(child:OutlinedButton.icon(onPressed:()=>share(x),icon:const Icon(Icons.add_chart),label:const Text('استحقاق'))),const SizedBox(width:8),Expanded(child:OutlinedButton.icon(onPressed:()=>pay(x),icon:const Icon(Icons.payments),label:const Text('دفع')))])]))))]));
                   }),
           ),
         ],
@@ -5460,15 +5662,31 @@ class _ReportsState extends State<ReportsPage> {
   String? type, category, status;
   int? bid, wid, pid, cid, mid;
   String currentType = 'diesel';
+  Map<String, String> _cfg = {};
+
+  /// نطاقات سريعة تتبع إعدادي «بداية الأسبوع» و«بداية السنة المالية».
+  List<(String, DateTime, DateTime)> _quickRanges() {
+    final now = AppClock.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return [
+      ('اليوم', today, today),
+      ('هذا الأسبوع', PeriodRanges.weekStart(today, _cfg['week_start'] ?? 'saturday'), today),
+      ('هذا الشهر', DateTime(now.year, now.month, 1), today),
+      ('السنة المالية', PeriodRanges.financialYearStart(today, _cfg['financial_year_start'] ?? '01-01'), today),
+    ];
+  }
+
   Future<void> load() async {
     final a = await widget.r.beneficiaries(),
         b = await widget.r.workers(),
         p = await widget.r.partners(),
         c = await widget.r.cashboxes(),
         m = await widget.r.paymentMethods();
-    final sysType = (await widget.r.settings())['system_type'] ?? 'diesel';
+    final cfg = await widget.r.settings();
+    final sysType = cfg['system_type'] ?? 'diesel';
     if (mounted)
       setState(() {
+        _cfg = cfg;
         bs = a;
         ws = b;
         ps = p;
@@ -5574,13 +5792,21 @@ class _ReportsState extends State<ReportsPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
+              for (final qr in _quickRanges())
+                ActionChip(
+                  label: Text(qr.$1),
+                  onPressed: () => setState(() {
+                    from = qr.$2;
+                    to = qr.$3;
+                  }),
+                ),
               OutlinedButton.icon(
                 onPressed: () async {
                   from = await showDatePicker(
                     context: context,
                     firstDate: DateTime(2020),
                     lastDate: DateTime(2100),
-                    initialDate: from ?? DateTime.now(),
+                    initialDate: from ?? AppClock.now(),
                     locale: const Locale('ar'),
                   );
                   setState(() {});
@@ -5598,7 +5824,7 @@ class _ReportsState extends State<ReportsPage> {
                     context: context,
                     firstDate: DateTime(2020),
                     lastDate: DateTime(2100),
-                    initialDate: to ?? DateTime.now(),
+                    initialDate: to ?? AppClock.now(),
                     locale: const Locale('ar'),
                   );
                   setState(() {});
@@ -5748,7 +5974,7 @@ class ReportPreviewPage extends StatelessWidget {
   Widget build(BuildContext c) {
     final title = ReportService.titles[keyName] ?? 'تقرير';
     return Directionality(
-      textDirection: ui.TextDirection.rtl,
+      textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
           title: Text(title),
@@ -5821,7 +6047,7 @@ class _NotificationsState extends State<NotificationsPage> {
   List<Map<String, Object?>> rows = [];
   String snoozeNote(Map<String, Object?> x) {
     final until = DateTime.tryParse('${x['snoozed_until'] ?? ''}');
-    return until != null && until.isAfter(DateTime.now())
+    return until != null && until.isAfter(AppClock.now())
         ? '\nمؤجّل حتى ${until.toString().substring(0, 16)}'
         : '';
   }
@@ -5894,6 +6120,8 @@ class _SettingsState extends State<SettingsPage> {
 
   Future<void> load() async {
     final x = await widget.r.settings();
+    // أي حفظ لإعداد يمر من هنا: نطبّق التفضيلات الحية (اسم التطبيق، الحركة، التنبيهات، مصدر الوقت).
+    await AppPrefs.apply(x);
     if (mounted) setState(() => s = x);
   }
 
@@ -5920,6 +6148,14 @@ class _SettingsState extends State<SettingsPage> {
       ),
     );
     if (ok == true) {
+      if (key == 'financial_year_start' && !PeriodRanges.validFinancialYearStart(c.text)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('الصيغة المطلوبة: شهر-يوم مثل 01-01 أو 07-01')),
+          );
+        }
+        return;
+      }
       if (key == 'system_type') {
         if (!await runGuarded(context, () => widget.r.setSystemType(c.text))) return;
         widget.onSystemTypeChanged?.call(c.text);
@@ -5969,8 +6205,8 @@ class _SettingsState extends State<SettingsPage> {
     try {
       await AdminService(widget.r.db).closePeriod(
         stationId: 1,
-        start: DateTime(DateTime.now().year, 1, 1),
-        end: DateTime.now(),
+        start: PeriodRanges.financialYearStart(AppClock.now(), s['financial_year_start'] ?? '01-01'),
+        end: AppClock.now(),
         userId: widget.userId,
         notes: 'إغلاق من الإعدادات',
       );
@@ -6106,9 +6342,13 @@ class _SettingsState extends State<SettingsPage> {
             children: [
               dropdownTile('queue_type', 'نمط التشغيل', const [MapEntry('circular','طابور دائري'),MapEntry('booking','نظام حجز')]),
               dropdownTile('time_source', 'مصدر الوقت', const [MapEntry('device','وقت الجهاز'),MapEntry('server','وقت الخادم')]),
+              if ((s['time_source'] ?? 'device') == 'server')
+                setTile('server_url', 'عنوان الخادم (لمزامنة الوقت)'),
+              dropdownTile('week_start', 'بداية الأسبوع', const [MapEntry('saturday','السبت'),MapEntry('sunday','الأحد'),MapEntry('monday','الاثنين'),MapEntry('tuesday','الثلاثاء'),MapEntry('wednesday','الأربعاء'),MapEntry('thursday','الخميس'),MapEntry('friday','الجمعة')]),
+              setTile('financial_year_start', 'بداية السنة المالية (شهر-يوم)'),
               setTile('min_wait_days', 'الحد الأدنى لأيام الانتظار', true),
               boolTile('manager_override_required', 'اشتراط تجاوز المدير'),
-              dropdownTile('absence_policy', 'سياسة الغياب', const [MapEntry('postpone','تأجيل'),MapEntry('cancel','إلغاء'),MapEntry('keep','إبقاء الدور')]),
+              dropdownTile('absence_policy', 'سياسة الغياب', const [MapEntry('keep_order','إبقاء الدور'),MapEntry('postpone','نقل لآخر الدور'),MapEntry('cancel','إزالة من الدور')]),
               boolTile('allow_midnight_crossing', 'السماح بعبور منتصف الليل'),
             ],
           ),

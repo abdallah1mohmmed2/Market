@@ -1,8 +1,11 @@
+import '../../core/app_clock.dart';
+import '../../core/app_prefs.dart';
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'calculations.dart';
 import '../../data/local/database.dart';
 import '../../data/local/queue_rotation.dart';
+import 'balance_sql.dart';
 
 /// رصيد ديزل المستفيد (لترات) = افتتاحي + مرحّل + تسليم + سلف − استهلاك.
 /// السلف داخلة في الرصيد حتى لا يبقى الرصيد سالبًا فتتضاعف السلفة التالية.
@@ -18,6 +21,22 @@ const String _beneficiaryDieselStockSql =
 class AccountingService {
   final AppDatabase database;
   AccountingService([AppDatabase? db]) : database = db ?? AppDatabase.instance;
+
+  // تنبيهات تُجمَّع داخل المعاملة وتُطلق بعد نجاحها فقط (صوت/نافذة منبثقة حسب الإعدادات).
+  final List<AppAlert> _pendingAlerts = [];
+
+  Future<T> _withAlerts<T>(Future<T> Function() body) async {
+    _pendingAlerts.clear();
+    try {
+      final r = await body();
+      for (final a in List<AppAlert>.of(_pendingAlerts)) {
+        AppAlerts.emit(a.title, a.body);
+      }
+      return r;
+    } finally {
+      _pendingAlerts.clear();
+    }
+  }
 
   Future<int> _accountIdTx(Transaction tx, String code) async {
     final r = await tx.query(
@@ -52,11 +71,11 @@ class AccountingService {
       throw StateError('القيد غير متوازن: المدين $debit / الدائن $credit');
     if (debit < 0 || credit < 0 || lines.isEmpty)
       throw StateError('القيد المحاسبي غير صالح');
-    final now = DateTime.now().toIso8601String();
+    final now = AppClock.now().toIso8601String();
     // تاريخ القيد = تاريخ العملية الفعلي (وليس لحظة الحفظ) حتى لا تُرحَّل
     // الحركات القديمة إلى اليوم ولا يُتجاوز إغلاق الفترة.
     final id = await tx.insert('journal_entries', {
-      'date': (date ?? DateTime.now()).toIso8601String(),
+      'date': (date ?? AppClock.now()).toIso8601String(),
       'reference_type': referenceType,
       'reference_id': referenceId,
       'description': description,
@@ -87,11 +106,13 @@ class AccountingService {
     required int referenceId,
     required String reason,
     int? userId,
+    String? descriptionEquals,
   }) async {
     final entries = await tx.rawQuery(
       "SELECT je.id,je.description FROM journal_entries je WHERE je.reference_type=? AND je.reference_id=? AND je.status='posted' "
+      "${descriptionEquals == null ? '' : 'AND je.description=? '}"
       "AND NOT EXISTS (SELECT 1 FROM journal_entries r WHERE r.reference_type='reversal' AND r.reference_id=je.id)",
-      [referenceType, referenceId],
+      [referenceType, referenceId, if (descriptionEquals != null) descriptionEquals],
     );
     var n = 0;
     for (final e in entries) {
@@ -181,8 +202,10 @@ class AccountingService {
     return 0;
   }
 
-  /// يحدد طريقة الدفع والصندوق: ما اختاره المستخدم إن وُجد، وإلا أول طريقة نقدية مفعّلة
-  /// وصندوقها المرتبط. تُستخدم بدل القيم الثابتة 1/1.
+  /// يحدد طريقة الدفع والصندوق معًا. الصندوق «تابع» للطريقة: إن كان للطريقة صندوق مرتبط
+  /// فهو الصندوق الوحيد المسموح، وأي صندوق مختلف يُرفض (حتى لا يتباعد رصيد الصندوق عن قيد
+  /// الأستاذ). الطريقة بلا صندوق مرتبط تقبل صندوقًا يُمرَّر صراحةً، وإلا أول صندوق مفعّل.
+  /// عند عدم اختيار طريقة تُستخدم أول طريقة نقدية مفعّلة.
   Future<Map<String, int>> resolvePaymentSource(
     DatabaseExecutor ex, {
     int? paymentMethodId,
@@ -201,7 +224,11 @@ class AccountingService {
           ? 'طريقة الدفع غير موجودة أو غير مفعّلة'
           : 'لا توجد طريقة دفع مفعّلة');
     }
-    var cb = cashboxId ?? (m.first['cashbox_id'] as num?)?.toInt();
+    final methodBox = (m.first['cashbox_id'] as num?)?.toInt();
+    if (methodBox != null && cashboxId != null && cashboxId != methodBox) {
+      throw ArgumentError('الصندوق المختار لا يطابق الصندوق المرتبط بطريقة الدفع');
+    }
+    var cb = methodBox ?? cashboxId;
     if (cb == null) {
       final c = await ex.rawQuery(
         'SELECT id FROM cashboxes WHERE active=1 ORDER BY id LIMIT 1',
@@ -316,10 +343,7 @@ class AccountingService {
           throw ArgumentError('فترات الغيم لا يجوز أن تتداخل');
         }
       }
-      final totalCloud = parsed.fold<int>(
-        0,
-        (sum, x) => sum + (x['minutes'] as int),
-      );
+      final totalCloud = parsed.fold<int>(0, (sum, x) => sum + x['minutes'] as int);
       if (totalCloud > AccountingCalculations.minutesBetween(start, endDt, allowMidnightCrossing: allowMidnight)) {
         throw ArgumentError('إجمالي خصم الغيم لا يمكن أن يتجاوز مدة السقاية');
       }
@@ -369,7 +393,7 @@ class AccountingService {
             partialHour: partialHour,
           );
 
-    return database.transaction((tx) async {
+    return _withAlerts(() => database.transaction((tx) async {
       await _assertPeriodOpen(tx, start);
       if (sessionId != null) {
         final sess = await tx.query(
@@ -428,7 +452,7 @@ class AccountingService {
         }
       }
       final totalCharged = calc.waterAmount + chargedDiesel;
-      final now = DateTime.now().toIso8601String();
+      final now = AppClock.now().toIso8601String();
       final id = await tx.insert('irrigations', {
         'station_id': stationId,
         'pump_id': pumpId,
@@ -522,7 +546,7 @@ class AccountingService {
       if (partyType == 'worker') {
         await tx.insert('worker_transactions', {
           'worker_id': workerId,
-          'date': now,
+          'date': start.toIso8601String(),
           'type': 'irrigation',
           'amount': totalCharged,
           'reference_type': 'irrigation',
@@ -533,7 +557,7 @@ class AccountingService {
       } else if (partyType == 'partner') {
         await tx.insert('partner_transactions', {
           'partner_id': partnerId,
-          'date': now,
+          'date': start.toIso8601String(),
           'type': 'irrigation',
           'amount': totalCharged,
           'ownership_snapshot': null,
@@ -586,8 +610,6 @@ class AccountingService {
           paymentMethodId: src['method']!,
           cashboxId: src['cashbox']!,
           userId: userId,
-          referenceType: 'irrigation',
-          referenceId: id,
           referenceNumber: 'IRR-$id',
         );
       }
@@ -622,7 +644,7 @@ class AccountingService {
           whereArgs: [bookingId],
         );
       return id;
-    });
+    }));
   }
 
   Future<int> _paymentInTx(
@@ -640,8 +662,16 @@ class AccountingService {
     String? notes,
   }) async {
     if (amount <= 0) throw ArgumentError('المبلغ يجب أن يكون أكبر من صفر');
-    final now = DateTime.now().toIso8601String();
-    await _assertPeriodOpen(tx, DateTime.now());
+    final now = AppClock.now().toIso8601String();
+    await _assertPeriodOpen(tx, AppClock.now());
+    // الصندوق تابع للطريقة؛ أي تعارض بينهما يُرفض هنا قبل أي كتابة.
+    final src = await resolvePaymentSource(
+      tx,
+      paymentMethodId: paymentMethodId,
+      cashboxId: cashboxId,
+    );
+    paymentMethodId = src['method']!;
+    cashboxId = src['cashbox']!;
     final id = await tx.insert('payments', {
       'beneficiary_id': beneficiaryId,
       'partner_id': partnerId,
@@ -661,22 +691,8 @@ class AccountingService {
       'UPDATE cashboxes SET current_balance=current_balance${isOutgoing ? '-' : '+'}? WHERE id=?',
       [amount, cashboxId],
     );
-    final method = await tx.query(
-      'payment_methods',
-      columns: ['ledger_account_code', 'type'],
-      where: 'id=?',
-      whereArgs: [paymentMethodId],
-      limit: 1,
-    );
-    if (method.isEmpty) throw StateError('طريقة الدفع غير موجودة');
-    final ledgerCode =
-        (method.first['ledger_account_code'] as String?) ??
-        ((method.first['type'] as String?) == 'bank_transfer'
-            ? '1100'
-            : (method.first['type'] as String?) == 'wallet'
-            ? '1120'
-            : '1000');
-    final cash = await _accountIdTx(tx, ledgerCode);
+    // حساب الأستاذ يُشتق من الصندوق نفسه (مصدر واحد لكل العمليات).
+    final cash = await _accountIdTx(tx, await _cashboxLedgerCode(tx, cashboxId));
     final accountCode = beneficiaryId != null
         ? '1200'
         : partnerId != null
@@ -686,8 +702,9 @@ class AccountingService {
     await _entry(
       tx,
       description: isOutgoing ? 'دفع لطرف رقم $id' : 'قبض من مستفيد رقم $id',
-      referenceType: referenceType ?? 'payment',
-      referenceId: referenceId ?? id,
+      // كل قيد دفعة مرتبط بالدفعة نفسها ليمكن عكسه منفردًا عند إلغاء الدفعة.
+      referenceType: 'payment',
+      referenceId: id,
       // قبض: مدين الصندوق / دائن حساب الطرف. دفع: مدين حساب الطرف / دائن الصندوق.
       lines: [
         {
@@ -716,16 +733,19 @@ class AccountingService {
       final map = {
         for (final x in templates) x['key'] as String: x['value'] as String,
       };
+      final title = map['notification_payment_title'] ?? 'تسجيل دفعة';
+      final body =
+          (map['notification_payment_body'] ??
+                  'تم تسجيل دفعة بمبلغ {amount} ريال')
+              .replaceAll('{amount}', '$amount');
       await tx.insert('notifications', {
         'beneficiary_id': beneficiaryId,
         'type': 'payment',
-        'title': map['notification_payment_title'] ?? 'تسجيل دفعة',
-        'body':
-            (map['notification_payment_body'] ??
-                    'تم تسجيل دفعة بمبلغ {amount} ريال')
-                .replaceAll('{amount}', '$amount'),
+        'title': title,
+        'body': body,
         'created_at': now,
       });
+      _pendingAlerts.add(AppAlert(title, body));
     }
     return id;
   }
@@ -738,16 +758,18 @@ class AccountingService {
     int? userId,
     String? referenceNumber,
     String? notes,
-  }) => database.transaction(
-    (tx) => _paymentInTx(
-      tx,
-      beneficiaryId: beneficiaryId,
-      amount: amount,
-      paymentMethodId: paymentMethodId,
-      cashboxId: cashboxId,
-      userId: userId,
-      referenceNumber: referenceNumber,
-      notes: notes,
+  }) => _withAlerts(
+    () => database.transaction(
+      (tx) => _paymentInTx(
+        tx,
+        beneficiaryId: beneficiaryId,
+        amount: amount,
+        paymentMethodId: paymentMethodId,
+        cashboxId: cashboxId,
+        userId: userId,
+        referenceNumber: referenceNumber,
+        notes: notes,
+      ),
     ),
   );
   Future<int> payWorker({
@@ -769,10 +791,12 @@ class AccountingService {
     );
     await tx.insert('worker_transactions', {
       'worker_id': workerId,
-      'date': DateTime.now().toIso8601String(),
+      'date': AppClock.now().toIso8601String(),
       'type': 'payment',
       'amount': amount,
       'cashbox_id': cashboxId,
+      'reference_type': 'payment',
+      'reference_id': id,
       'notes': notes,
       'created_by': userId,
     });
@@ -797,7 +821,7 @@ class AccountingService {
     );
     await tx.insert('partner_transactions', {
       'partner_id': partnerId,
-      'date': DateTime.now().toIso8601String(),
+      'date': AppClock.now().toIso8601String(),
       'type': 'payment',
       'amount': amount,
       'notes': notes,
@@ -822,6 +846,14 @@ class AccountingService {
     await _assertPeriodOpen(tx, date);
     if (amount <= 0)
       throw ArgumentError('قيمة المصروف يجب أن تكون أكبر من صفر');
+    // الصندوق تابع للطريقة المختارة (يُرفض أي تعارض).
+    final src = await resolvePaymentSource(
+      tx,
+      paymentMethodId: paymentMethodId,
+      cashboxId: cashboxId,
+    );
+    paymentMethodId = src['method']!;
+    cashboxId = src['cashbox']!;
     final id = await tx.insert('expenses', {
       'category': category,
       'title': title,
@@ -842,22 +874,7 @@ class AccountingService {
       [amount, cashboxId],
     );
     final exp = await _accountIdTx(tx, _expenseAccount(category));
-    final method = await tx.query(
-      'payment_methods',
-      columns: ['ledger_account_code', 'type'],
-      where: 'id=?',
-      whereArgs: [paymentMethodId],
-      limit: 1,
-    );
-    if (method.isEmpty) throw StateError('طريقة الدفع غير موجودة');
-    final ledgerCode =
-        (method.first['ledger_account_code'] as String?) ??
-        ((method.first['type'] as String?) == 'bank_transfer'
-            ? '1100'
-            : (method.first['type'] as String?) == 'wallet'
-            ? '1120'
-            : '1000');
-    final cash = await _accountIdTx(tx, ledgerCode);
+    final cash = await _accountIdTx(tx, await _cashboxLedgerCode(tx, cashboxId));
     await _entry(
       tx,
       description: title,
@@ -893,7 +910,7 @@ class AccountingService {
       );
       if (r.isEmpty || r.first['status'] != 'posted')
         throw StateError('المصروف غير قابل للإلغاء');
-      await _assertPeriodOpen(tx, DateTime.now());
+      await _assertPeriodOpen(tx, AppClock.now());
       await tx.update(
         'expenses',
         {
@@ -973,16 +990,9 @@ class AccountingService {
           [amount, cashboxId],
         );
         final inventory = await _accountIdTx(tx, '1300');
-        final method = await tx.query(
-          'payment_methods',
-          columns: ['ledger_account_code'],
-          where: 'id=?',
-          whereArgs: [1],
-          limit: 1,
-        );
         final cash = await _accountIdTx(
           tx,
-          (method.first['ledger_account_code'] as String?) ?? '1000',
+          await _cashboxLedgerCode(tx, cashboxId),
         );
         await _entry(
           tx,
@@ -1068,9 +1078,20 @@ class AccountingService {
     return (r.first['stock'] as num?)?.toDouble() ?? 0;
   }
 
-  /// كود حساب الأستاذ الذي يمثل الصندوق (من طريقة الدفع المرتبطة به).
-  Future<String> _cashboxAccountCode(Transaction tx, int cashboxId) async {
-    final m = await tx.query(
+  /// كود حساب الأستاذ الذي يمثل الصندوق. هو المصدر الوحيد لكل العمليات (دفعات، مصروفات،
+  /// ديزل، تحويلات). للصناديق القديمة بلا قيمة محفوظة يُشتق من أول طريقة دفع مفعّلة مرتبطة بها.
+  Future<String> _cashboxLedgerCode(DatabaseExecutor ex, int cashboxId) async {
+    final c = await ex.query(
+      'cashboxes',
+      columns: ['ledger_account_code'],
+      where: 'id=?',
+      whereArgs: [cashboxId],
+      limit: 1,
+    );
+    if (c.isEmpty) throw StateError('الصندوق غير موجود');
+    final own = c.first['ledger_account_code'] as String?;
+    if (own != null && own.isNotEmpty) return own;
+    final m = await ex.query(
       'payment_methods',
       columns: ['ledger_account_code', 'type'],
       where: 'cashbox_id=? AND active=1',
@@ -1088,6 +1109,74 @@ class AccountingService {
     };
   }
 
+  static const Set<String> _cashLedgerCodes = {'1000', '1100', '1120'};
+
+  /// إنشاء صندوق. الرصيد الافتتاحي يُقيَّد (مدين حساب الصندوق / دائن الأرصدة الافتتاحية 3000)
+  /// في نفس المعاملة، فلا يبقى رصيد في الصندوق بلا أثر في الأستاذ.
+  Future<int> createCashbox({
+    required String name,
+    int openingBalance = 0,
+    String currency = 'YER',
+    String ledgerAccountCode = '1000',
+    int? userId,
+  }) async {
+    if (name.trim().isEmpty) throw ArgumentError('اسم الصندوق مطلوب');
+    if (openingBalance < 0) {
+      throw ArgumentError('الرصيد الافتتاحي لا يمكن أن يكون سالبًا');
+    }
+    if (!_cashLedgerCodes.contains(ledgerAccountCode)) {
+      throw ArgumentError('حساب الصندوق غير صالح');
+    }
+    return database.transaction((tx) async {
+      final now = AppClock.now();
+      if (openingBalance > 0) await _assertPeriodOpen(tx, now);
+      final id = await tx.insert('cashboxes', {
+        'station_id': 1,
+        'name': name.trim(),
+        'opening_balance': openingBalance,
+        'current_balance': openingBalance,
+        'currency': currency,
+        'ledger_account_code': ledgerAccountCode,
+        'active': 1,
+      });
+      if (openingBalance > 0) {
+        await _entry(
+          tx,
+          description: 'رصيد افتتاحي للصندوق ${name.trim()}',
+          referenceType: 'cashbox_opening',
+          referenceId: id,
+          lines: [
+            {
+              'account_id': await _accountIdTx(tx, ledgerAccountCode),
+              'debit': openingBalance,
+              'credit': 0,
+            },
+            {
+              'account_id': await _accountIdTx(tx, '3000'),
+              'debit': 0,
+              'credit': openingBalance,
+            },
+          ],
+          userId: userId,
+          date: now,
+        );
+      }
+      await database.auditTx(
+        tx,
+        userId: userId,
+        operation: 'create',
+        table: 'cashboxes',
+        recordId: id,
+        newValues: {
+          'name': name,
+          'opening_balance': openingBalance,
+          'ledger_account_code': ledgerAccountCode,
+        },
+      );
+      return id;
+    });
+  }
+
   Future<void> transferCash({
     required int from,
     required int to,
@@ -1101,6 +1190,14 @@ class AccountingService {
     if (amount <= 0)
       throw ArgumentError('قيمة التحويل يجب أن تكون أكبر من صفر');
     if (from == to) throw ArgumentError('لا يمكن التحويل إلى نفس الصندوق');
+    final target = await tx.query(
+      'cashboxes',
+      columns: ['id'],
+      where: 'id=? AND active=1',
+      whereArgs: [to],
+      limit: 1,
+    );
+    if (target.isEmpty) throw StateError('صندوق الوجهة غير موجود أو غير مفعّل');
     if (!opening) {
       final r = await tx.query(
         'cashboxes',
@@ -1131,13 +1228,13 @@ class AccountingService {
       'UPDATE cashboxes SET current_balance=current_balance+? WHERE id=?',
       [amount, to],
     );
-    // حساب كل صندوق يُشتق من طريقة الدفع المرتبطة به (ledger_account_code أو نوعها).
-    final toAccount = await _accountIdTx(tx, await _cashboxAccountCode(tx, to));
+    // حساب كل صندوق يُشتق من الصندوق نفسه، بنفس الدالة المستعملة في الدفعات والمصروفات.
+    final toAccount = await _accountIdTx(tx, await _cashboxLedgerCode(tx, to));
     // التحويل الافتتاحي: يقابله حساب الأرصدة الافتتاحية (3000) لا صندوق آخر،
     // لأن رصيد المصدر لا ينقص فيه.
     final fromAccount = opening
         ? await _accountIdTx(tx, '3000')
-        : await _accountIdTx(tx, await _cashboxAccountCode(tx, from));
+        : await _accountIdTx(tx, await _cashboxLedgerCode(tx, from));
     await _entry(
       tx,
       description: opening ? 'تحويل افتتاحي' : 'تحويل بين الصناديق',
@@ -1242,28 +1339,11 @@ class AccountingService {
   });
 
   Future<Map<String, int>> beneficiaryBalance(int id) async {
-    final set = await settings();
-    final includeDiesel = set['diesel_delivery_financial_credit'] == 'true';
     final r = await database.query(
-      '''SELECT b.opening_balance opening,b.carried_balance carried,
-      COALESCE((SELECT SUM(total_amount) FROM irrigations WHERE beneficiary_id=b.id AND status!='cancelled'),0) irrigation,
-      COALESCE((SELECT SUM(amount) FROM diesel_movements WHERE beneficiary_id=b.id AND kind='advance' AND irrigation_id IS NULL),0) advances,
-      COALESCE((SELECT SUM(amount) FROM payments WHERE beneficiary_id=b.id AND status='posted'),0) paid,
-      COALESCE((SELECT SUM(amount) FROM diesel_movements WHERE beneficiary_id=b.id AND kind='delivery'),0) diesel_credit
-      FROM beneficiaries b WHERE b.id=?''',
+      'SELECT ${BalanceSql.beneficiary('b')} balance FROM beneficiaries b WHERE b.id=?',
       args: [id],
     );
-    final x = r.first;
-    final balance = AccountingCalculations.beneficiaryBalance(
-      opening: (x['opening'] as num?)?.round() ?? 0,
-      carried: (x['carried'] as num?)?.round() ?? 0,
-      irrigationDue: (x['irrigation'] as num?)?.round() ?? 0,
-      advances: (x['advances'] as num?)?.round() ?? 0,
-      paid: (x['paid'] as num?)?.round() ?? 0,
-      financialDieselCredit: includeDiesel
-          ? (x['diesel_credit'] as num?)?.round() ?? 0
-          : 0,
-    );
+    final balance = r.isEmpty ? 0 : (r.first['balance'] as num?)?.round() ?? 0;
     return {
       'balance': balance,
       'due': balance > 0 ? balance : 0,
@@ -1273,7 +1353,7 @@ class AccountingService {
 
   Future<Map<String, int>> workerBalance(int id) async {
     final r = await database.query(
-      "SELECT COALESCE((SELECT opening_balance+carried_balance FROM workers WHERE id=?),0)+COALESCE(SUM(CASE WHEN type IN ('accrual', 'salary', 'irrigation_reversal') THEN amount ELSE -amount END),0) balance FROM worker_transactions WHERE worker_id=?",
+      "SELECT COALESCE((SELECT opening_balance+carried_balance FROM workers WHERE id=?),0)+COALESCE(SUM(CASE WHEN type IN ${BalanceSql.workerCredit} THEN amount ELSE -amount END),0) balance FROM worker_transactions WHERE worker_id=?",
       args: [id, id],
     );
     final v = (r.first['balance'] as num?)?.round() ?? 0;
@@ -1282,7 +1362,7 @@ class AccountingService {
 
   Future<Map<String, int>> partnerBalance(int id) async {
     final r = await database.query(
-      "SELECT COALESCE((SELECT opening_balance+carried_balance FROM partners WHERE id=?),0)+COALESCE(SUM(CASE WHEN type IN ('share_accrual', 'contribution') THEN amount ELSE -amount END),0) balance FROM partner_transactions WHERE partner_id=?",
+      "SELECT COALESCE((SELECT opening_balance+carried_balance FROM partners WHERE id=?),0)+COALESCE(SUM(CASE WHEN type IN ${BalanceSql.partnerCredit} THEN amount ELSE -amount END),0) balance FROM partner_transactions WHERE partner_id=?",
       args: [id, id],
     );
     final v = (r.first['balance'] as num?)?.round() ?? 0;
@@ -1301,36 +1381,27 @@ class AccountingService {
       if (rows.isEmpty || rows.first['status'] == 'cancelled')
         throw StateError('السقاية غير موجودة أو ملغاة مسبقًا');
       final old = rows.first;
-      await _assertPeriodOpen(tx, DateTime.now());
+      await _assertPeriodOpen(tx, AppClock.now());
       await tx.update(
         'irrigations',
         {
           'status': 'cancelled',
           'notes': '${old['notes'] ?? ''}\nإلغاء: $reason',
-          'updated_at': DateTime.now().toIso8601String(),
+          'updated_at': AppClock.now().toIso8601String(),
         },
         where: 'id=?',
         whereArgs: [id],
       );
-      // 1) عكس الدفعة المرتبطة (إن وُجدت) وإعادة رصيد الصندوق
+      // 1) عكس الدفعات المرتبطة (إن وُجدت) مع فحص ألا يصبح الصندوق سالبًا
       final pays = await tx.query(
         'payments',
         where: "reference_number=? AND status='posted'",
         whereArgs: ['IRR-$id'],
       );
       for (final pay in pays) {
-        await tx.update(
-          'payments',
-          {'status': 'cancelled'},
-          where: 'id=?',
-          whereArgs: [pay['id']],
-        );
-        await tx.rawUpdate(
-          'UPDATE cashboxes SET current_balance=current_balance-? WHERE id=?',
-          [(pay['amount'] as num).round(), pay['cashbox_id']],
-        );
+        await _cancelPaymentRowTx(tx, pay, reason: reason, userId: userId);
       }
-      // 2) قيود عكسية لكل قيود السقاية (الاستحقاق + الدفعة)
+      // 2) قيود عكسية لباقي قيود السقاية (الاستحقاق، وقيود الدفعات القديمة المربوطة بالسقاية)
       await _reverseEntriesTx(
         tx,
         referenceType: 'irrigation',
@@ -1365,7 +1436,7 @@ class AccountingService {
       if (old['party_type'] == 'worker' && old['worker_id'] != null) {
         await tx.insert('worker_transactions', {
           'worker_id': old['worker_id'],
-          'date': DateTime.now().toIso8601String(),
+          'date': AppClock.now().toIso8601String(),
           'type': 'irrigation_reversal',
           'amount': (old['total_amount'] as num).round(),
           'reference_type': 'irrigation_cancel',
@@ -1377,8 +1448,9 @@ class AccountingService {
       if (old['party_type'] == 'partner' && old['partner_id'] != null) {
         await tx.insert('partner_transactions', {
           'partner_id': old['partner_id'],
-          'date': DateTime.now().toIso8601String(),
-          'type': 'contribution',
+          'date': AppClock.now().toIso8601String(),
+          // نوع مستقل: عكس خصم سابق وليس مساهمة، فلا تتضخم «الأرباح».
+          'type': 'irrigation_reversal',
           'amount': (old['total_amount'] as num).round(),
           'notes': 'عكس سقاية رقم $id: $reason',
         });
@@ -1393,6 +1465,269 @@ class AccountingService {
         reason: reason,
       );
     });
+  }
+
+  /// يلغي دفعة واحدة داخل معاملة قائمة: يغيّر حالتها، يعدّل رصيد الصندوق (مع منع الرصيد السالب
+  /// عند عكس قبض)، يعكس قيدها المحاسبي، ويضيف حركة عكسية لحساب العامل/الشريك.
+  Future<void> _cancelPaymentRowTx(
+    Transaction tx,
+    Map<String, Object?> pay, {
+    required String reason,
+    int? userId,
+  }) async {
+    final payId = (pay['id'] as num).toInt();
+    final amount = (pay['amount'] as num).round();
+    final cashboxId = (pay['cashbox_id'] as num).toInt();
+    final incoming = pay['beneficiary_id'] != null;
+    await tx.update(
+      'payments',
+      {
+        'status': 'cancelled',
+        'notes': '${pay['notes'] ?? ''}\nإلغاء: $reason',
+      },
+      where: 'id=?',
+      whereArgs: [payId],
+    );
+    if (incoming) {
+      // إلغاء قبض يُخرج المبلغ من الصندوق: يجب ألا يصبح رصيده سالبًا.
+      final box = await tx.query(
+        'cashboxes',
+        columns: ['name', 'current_balance'],
+        where: 'id=?',
+        whereArgs: [cashboxId],
+        limit: 1,
+      );
+      final bal = box.isEmpty ? 0 : (box.first['current_balance'] as num).round();
+      if (bal < amount) {
+        throw StateError(
+          'لا يمكن الإلغاء: رصيد الصندوق «${box.isEmpty ? cashboxId : box.first['name']}» ($bal) أقل من مبلغ الدفعة ($amount) وسيصبح سالبًا',
+        );
+      }
+      await tx.rawUpdate(
+        'UPDATE cashboxes SET current_balance=current_balance-? WHERE id=?',
+        [amount, cashboxId],
+      );
+    } else {
+      await tx.rawUpdate(
+        'UPDATE cashboxes SET current_balance=current_balance+? WHERE id=?',
+        [amount, cashboxId],
+      );
+    }
+    // القيد: الحديث مرتبط بالدفعة نفسها؛ القديم كان مرتبطًا بالسقاية بنفس وصف القيد.
+    var n = await _reverseEntriesTx(
+      tx,
+      referenceType: 'payment',
+      referenceId: payId,
+      reason: reason,
+      userId: userId,
+    );
+    final refNo = '${pay['reference_number'] ?? ''}';
+    if (n == 0 && refNo.startsWith('IRR-')) {
+      final irrId = int.tryParse(refNo.substring(4));
+      if (irrId != null) {
+        n = await _reverseEntriesTx(
+          tx,
+          referenceType: 'irrigation',
+          referenceId: irrId,
+          reason: reason,
+          userId: userId,
+          descriptionEquals: 'قبض من مستفيد رقم $payId',
+        );
+      }
+    }
+    if (refNo.startsWith('IRR-')) {
+      final irrId = int.tryParse(refNo.substring(4));
+      if (irrId != null) {
+        await tx.rawUpdate(
+          'UPDATE irrigations SET paid_amount=MAX(paid_amount-?,0) WHERE id=?',
+          [amount, irrId],
+        );
+      }
+    }
+    final now = AppClock.now().toIso8601String();
+    if (pay['worker_id'] != null) {
+      await tx.insert('worker_transactions', {
+        'worker_id': pay['worker_id'],
+        'date': now,
+        'type': 'payment_reversal',
+        'amount': amount,
+        'cashbox_id': cashboxId,
+        'reference_type': 'payment_cancel',
+        'reference_id': payId,
+        'notes': 'إلغاء دفعة رقم $payId: $reason',
+        'created_by': userId,
+      });
+    }
+    if (pay['partner_id'] != null) {
+      await tx.insert('partner_transactions', {
+        'partner_id': pay['partner_id'],
+        'date': now,
+        'type': 'payment_reversal',
+        'amount': amount,
+        'notes': 'إلغاء دفعة رقم $payId: $reason',
+      });
+    }
+    await database.auditTx(
+      tx,
+      userId: userId,
+      operation: 'cancel',
+      table: 'payments',
+      recordId: payId,
+      oldValues: pay,
+      reason: reason,
+    );
+  }
+
+  /// إلغاء دفعة (قبض من مستفيد أو دفع لعامل/شريك) مع عكس أثرها كاملًا.
+  Future<void> cancelPayment(int id, int userId, String reason) async {
+    if (reason.trim().isEmpty) throw ArgumentError('سبب إلغاء الدفعة مطلوب');
+    await database.transaction((tx) async {
+      final r = await tx.query(
+        'payments',
+        where: 'id=?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (r.isEmpty || r.first['status'] != 'posted') {
+        throw StateError('الدفعة غير موجودة أو ملغاة مسبقًا');
+      }
+      await _assertPeriodOpen(tx, AppClock.now());
+      await _cancelPaymentRowTx(tx, r.first, reason: reason, userId: userId);
+    });
+  }
+
+  /// إلغاء حركة ديزل يدوية (شراء/تسليم/سلفة/استهلاك/تصحيح): تُعكس قيودها ويُردّ أثرها على
+  /// الصندوق، ثم تُحذف الحركة وتُحفظ قيمها في سجل التدقيق. حركات السقاية لا تُلغى من هنا
+  /// بل بإلغاء السقاية نفسها. يُمنع الإلغاء إن كان سيجعل مخزون المحطة سالبًا.
+  Future<void> cancelDieselMovement(int id, int userId, String reason) async {
+    if (reason.trim().isEmpty) throw ArgumentError('سبب الإلغاء مطلوب');
+    await database.transaction((tx) async {
+      final r = await tx.query(
+        'diesel_movements',
+        where: 'id=?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (r.isEmpty) throw StateError('حركة الديزل غير موجودة');
+      final m = r.first;
+      if (m['irrigation_id'] != null) {
+        throw StateError('هذه الحركة مرتبطة بسقاية؛ تُلغى بإلغاء السقاية');
+      }
+      await _assertPeriodOpen(tx, DateTime.parse('${m['date']}'));
+      final kind = '${m['kind']}';
+      final liters = (m['liters'] as num).toDouble();
+      // أثر الحركة على مخزون المحطة، وبعد إلغائها يجب ألا يصبح سالبًا.
+      final delta = switch (kind) {
+        'receipt' || 'opening_balance' || 'correction' => liters,
+        'delivery' || 'consumption' => -liters,
+        _ => 0.0,
+      };
+      final st = await tx.rawQuery(_stationDieselStockSql);
+      final stock = (st.first['stock'] as num?)?.toDouble() ?? 0;
+      if (delta > 0 && stock - delta < -0.0005) {
+        throw StateError('لا يمكن الإلغاء: سيصبح مخزون الديزل سالبًا');
+      }
+      final refType = switch (kind) {
+        'receipt' => 'diesel_receipt',
+        'consumption' => 'diesel_consumption',
+        'delivery' => 'diesel',
+        'advance' => 'diesel_advance',
+        _ => null,
+      };
+      if (refType != null) {
+        await _reverseEntriesTx(
+          tx,
+          referenceType: refType,
+          referenceId: id,
+          reason: reason,
+          userId: userId,
+        );
+      }
+      final cb = (m['cashbox_id'] as num?)?.toInt();
+      if (kind == 'receipt' && cb != null) {
+        await tx.rawUpdate(
+          'UPDATE cashboxes SET current_balance=current_balance+? WHERE id=?',
+          [(m['amount'] as num).round(), cb],
+        );
+      }
+      await tx.delete('diesel_movements', where: 'id=?', whereArgs: [id]);
+      await database.auditTx(
+        tx,
+        userId: userId,
+        operation: 'cancel',
+        table: 'diesel_movements',
+        recordId: id,
+        oldValues: m,
+        reason: reason,
+      );
+    });
+  }
+
+  /// تعديل ملاحظات حركة ديزل فقط؛ الكمية والسعر والنوع تُصحَّح بإلغاء الحركة وإعادة إدخالها
+  /// حتى لا يتباعد المخزون والقيود عن بعضهما.
+  Future<void> updateDieselNotes(int id, String notes, int? userId) async {
+    final r = await database.query(
+      'SELECT notes FROM diesel_movements WHERE id=?',
+      args: [id],
+    );
+    if (r.isEmpty) throw StateError('حركة الديزل غير موجودة');
+    await database.update('diesel_movements', {'notes': notes}, 'id=?', [id]);
+    await database.audit(
+      userId: userId,
+      operation: 'update',
+      table: 'diesel_movements',
+      recordId: id,
+      oldValues: {'notes': r.first['notes']},
+      newValues: {'notes': notes},
+    );
+  }
+
+  /// يقيّد الفرق بين الأرصدة الافتتاحية/المرحَّلة القديمة والجديدة للمستفيد في الأستاذ:
+  /// موجب (عليه) = مدين ذمم المستفيدين / دائن 3000 (أو 3100 للمرحَّل)، والسالب بالعكس.
+  /// يُستدعى عند الإنشاء (القديم = 0) وعند التعديل، فلا يتغير رصيد المستفيد دون قيد.
+  Future<void> postBeneficiaryBalanceDeltaTx(
+    Transaction tx,
+    int beneficiaryId,
+    String name, {
+    int oldOpening = 0,
+    required int newOpening,
+    int oldCarried = 0,
+    required int newCarried,
+    int? userId,
+  }) async {
+    final specs = [
+      ('beneficiary_opening', newOpening - oldOpening, '3000', 'تعديل رصيد افتتاحي للمستفيد'),
+      ('beneficiary_carried', newCarried - oldCarried, '3100', 'تعديل رصيد مرحَّل للمستفيد'),
+    ];
+    for (final spec in specs) {
+      final delta = spec.$2;
+      if (delta == 0) continue;
+      await _assertPeriodOpen(tx, AppClock.now());
+      final ar = await _accountIdTx(tx, '1200');
+      final eq = await _accountIdTx(tx, spec.$3);
+      final owes = delta > 0;
+      final abs = delta.abs();
+      await _entry(
+        tx,
+        description: '${spec.$4} $name',
+        referenceType: spec.$1,
+        referenceId: beneficiaryId,
+        lines: [
+          {
+            'account_id': ar,
+            'beneficiary_id': beneficiaryId,
+            'debit': owes ? abs : 0,
+            'credit': owes ? 0 : abs,
+          },
+          {
+            'account_id': eq,
+            'debit': owes ? 0 : abs,
+            'credit': owes ? abs : 0,
+          },
+        ],
+        userId: userId,
+      );
+    }
   }
 
   /// جداول النسخة المحمولة (JSON) مرتّبة بحيث تسبق الجداولُ الأمُّ جداولَها التابعة
@@ -1445,7 +1780,7 @@ class AccountingService {
     final out = <String, dynamic>{
       '_meta': {
         'format_version': 2,
-        'exported_at': DateTime.now().toIso8601String(),
+        'exported_at': AppClock.now().toIso8601String(),
       },
     };
     for (final t in portableTables) {

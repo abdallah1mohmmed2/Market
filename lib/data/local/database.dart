@@ -1,3 +1,4 @@
+import '../../core/app_clock.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -24,7 +25,7 @@ class AppDatabase {
     final path = p.join(dir, 'saqia_station_v2.db');
     _db = await openDatabase(
       path,
-      version: 12,
+      version: 13,
       // المفاتيح الأجنبية تُعطَّل أثناء الإنشاء/الترقية لأن SQLite لا يسمح بتغيير
       // PRAGMA foreign_keys داخل معاملة الترقية، وتُفعَّل في onOpen بعد انتهائها.
       onConfigure: (d) async => d.execute('PRAGMA foreign_keys=OFF'),
@@ -153,7 +154,7 @@ class AppDatabase {
       await d.insert('settings', {
         'key': 'selected_pump_id',
         'value': '1',
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': AppClock.now().toIso8601String(),
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     if (oldV < 10) {
@@ -190,6 +191,100 @@ class AppDatabase {
         // لا نمنع فتح التطبيق إن لم يسمح النظام بتعديل المخطط؛ تبقى القاعدة كما هي.
       }
     }
+    if (oldV < 13) {
+      await _migrateV13(d);
+    }
+  }
+
+  /// V13: توحيد اشتقاق حساب الصندوق، وقيود الأرصدة الافتتاحية، وفصل «عكس سقاية الشريك».
+  Future<void> _migrateV13(Database d) async {
+    final cols = await d.rawQuery('PRAGMA table_info(cashboxes)');
+    if (!cols.any((x) => x['name'] == 'ledger_account_code')) {
+      await d.execute('ALTER TABLE cashboxes ADD COLUMN ledger_account_code TEXT');
+    }
+    // حساب الصندوق = حساب أول طريقة دفع مفعّلة مرتبطة به (نفس ما كان يفعله التحويل)، وإلا الصندوق النقدي.
+    await d.execute(
+      "UPDATE cashboxes SET ledger_account_code=COALESCE((SELECT COALESCE(NULLIF(pm.ledger_account_code,''),CASE pm.type WHEN 'bank_transfer' THEN '1100' WHEN 'wallet' THEN '1120' ELSE '1000' END) FROM payment_methods pm WHERE pm.cashbox_id=cashboxes.id AND pm.active=1 ORDER BY pm.id LIMIT 1),'1000') WHERE ledger_account_code IS NULL OR ledger_account_code=''",
+    );
+    // طريقة الدفع المرتبطة بصندوق ترث حسابه، فلا يتباعد القيد عن الصندوق.
+    await d.execute(
+      "UPDATE payment_methods SET ledger_account_code=(SELECT c.ledger_account_code FROM cashboxes c WHERE c.id=payment_methods.cashbox_id) WHERE cashbox_id IS NOT NULL AND EXISTS (SELECT 1 FROM cashboxes c WHERE c.id=payment_methods.cashbox_id)",
+    );
+    // عكس سقاية الشريك كان يُسجَّل «مساهمة» فتتضخم الأرباح؛ يصبح نوعًا مستقلًا.
+    await d.execute(
+      "UPDATE partner_transactions SET type='irrigation_reversal' WHERE type='contribution' AND notes LIKE 'عكس سقاية رقم%'",
+    );
+    // قيمة «keep» القديمة في سياسة الغياب تُوحَّد مع القيمة الافتراضية.
+    await d.execute("UPDATE settings SET value='keep_order' WHERE key='absence_policy' AND value='keep'");
+    await _backfillOpeningEntries(d);
+  }
+
+  Future<int?> _acc(Database d, String code) async {
+    final r = await d.rawQuery('SELECT id FROM accounts WHERE code=?', [code]);
+    return r.isEmpty ? null : (r.first['id'] as num).toInt();
+  }
+
+  /// يرحّل قيدًا لكل رصيد افتتاحي/مرحّل قائم لم يُقيَّد من قبل (صناديق ومستفيدون).
+  Future<void> _backfillOpeningEntries(Database d) async {
+    final now = AppClock.now().toIso8601String();
+    final eq3000 = await _acc(d, '3000');
+    final eq3100 = await _acc(d, '3100');
+    final ar = await _acc(d, '1200');
+    if (eq3000 == null || eq3100 == null || ar == null) return;
+
+    Future<void> post(String refType, int refId, String desc, String date,
+        List<Map<String, Object?>> lines) async {
+      final id = await d.insert('journal_entries', {
+        'date': date,
+        'reference_type': refType,
+        'reference_id': refId,
+        'description': desc,
+        'status': 'posted',
+        'created_by': null,
+        'created_at': now,
+      });
+      for (final l in lines) {
+        await d.insert('journal_lines', {...l, 'journal_entry_id': id});
+      }
+    }
+
+    final boxes = await d.rawQuery(
+      "SELECT c.id,c.name,c.opening_balance,c.ledger_account_code FROM cashboxes c WHERE c.opening_balance>0 AND NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.reference_type='cashbox_opening' AND je.reference_id=c.id)",
+    );
+    for (final b in boxes) {
+      final cash = await _acc(d, '${b['ledger_account_code'] ?? '1000'}') ?? await _acc(d, '1000');
+      if (cash == null) continue;
+      final amt = (b['opening_balance'] as num).round();
+      await post('cashbox_opening', (b['id'] as num).toInt(), 'رصيد افتتاحي للصندوق ${b['name']}', now, [
+        {'account_id': cash, 'debit': amt, 'credit': 0},
+        {'account_id': eq3000, 'debit': 0, 'credit': amt},
+      ]);
+    }
+
+    final bens = await d.rawQuery('SELECT id,name,opening_balance,carried_balance,created_at FROM beneficiaries');
+    for (final b in bens) {
+      final id = (b['id'] as num).toInt();
+      final date = '${b['created_at'] ?? now}';
+      for (final spec in [
+        ('beneficiary_opening', (b['opening_balance'] as num?)?.round() ?? 0, eq3000, 'رصيد افتتاحي للمستفيد'),
+        ('beneficiary_carried', (b['carried_balance'] as num?)?.round() ?? 0, eq3100, 'رصيد مرحَّل للمستفيد'),
+      ]) {
+        final amt = spec.$2;
+        if (amt == 0) continue;
+        final exists = await d.rawQuery(
+          'SELECT 1 FROM journal_entries WHERE reference_type=? AND reference_id=? LIMIT 1',
+          [spec.$1, id],
+        );
+        if (exists.isNotEmpty) continue;
+        // موجب = عليه: مدين ذمم المستفيدين. سالب = له: دائن ذمم المستفيدين.
+        final owes = amt > 0;
+        final abs = amt.abs();
+        await post(spec.$1, id, '${spec.$4} ${b['name']}', date, [
+          {'account_id': ar, 'beneficiary_id': id, 'debit': owes ? abs : 0, 'credit': owes ? 0 : abs},
+          {'account_id': spec.$3, 'debit': owes ? 0 : abs, 'credit': owes ? abs : 0},
+        ]);
+      }
+    }
   }
 
   Future<void> _createHelpers(Database d) async {
@@ -220,7 +315,7 @@ class AppDatabase {
   }
 
   Future<void> _seed(Database d) async {
-    final now = DateTime.now().toIso8601String();
+    final now = AppClock.now().toIso8601String();
     if ((await d.query('stations')).isEmpty)
       await d.insert('stations', {
         'id': 1,
@@ -275,6 +370,7 @@ class AppDatabase {
         'opening_balance': 0,
         'current_balance': 0,
         'currency': 'YER',
+        'ledger_account_code': '1000',
         'active': 1,
       });
     if ((await d.query('payment_methods')).isEmpty)
@@ -304,6 +400,7 @@ class AppDatabase {
       'system_type': 'diesel',
       'queue_type': 'circular',
       'time_source': 'device',
+      'server_url': '',
       'min_wait_days': '3',
       'manager_override_required': 'true',
       'absence_policy': 'keep_order',
@@ -421,7 +518,7 @@ class AppDatabase {
       'old_values': oldValues == null ? null : jsonEncode(oldValues),
       'new_values': newValues == null ? null : jsonEncode(newValues),
       'reason': reason,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': AppClock.now().toIso8601String(),
     });
   }
 
@@ -442,7 +539,7 @@ class AppDatabase {
       'old_values': oldValues == null ? null : jsonEncode(oldValues),
       'new_values': newValues == null ? null : jsonEncode(newValues),
       'reason': reason,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': AppClock.now().toIso8601String(),
     });
   }
 }

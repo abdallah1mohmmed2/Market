@@ -342,4 +342,62 @@ void main() {
     expect(st['pump_name'], isNotEmpty);
     await expectLater(repo.selectPump(999999), throwsArgumentError);
   });
+
+  // ---------- إصلاحات V24 ----------
+  test('الصندوق ذو رصيد افتتاحي يُقيَّد في الأستاذ مقابل 3000', () async {
+    final before = await accountNet('3000');
+    final repo = StationRepository(db);
+    final id = await repo.createCashbox(name: 'افتتاحي', openingBalance: 700);
+    expect(await cashboxBalance(id), 700);
+    expect((await accountNet('3000')) - before, -700);
+  });
+
+  test('طريقة دفع وصندوق متعارضان يُرفضان', () async {
+    final cb = await db.insert('cashboxes', {
+      'station_id': 1, 'name': 'آخر', 'opening_balance': 0,
+      'current_balance': 0, 'currency': 'YER', 'active': 1,
+    });
+    await expectLater(
+      svc.addExpense(
+        category: 'other', title: 't', amount: 10, date: DateTime.now(),
+        paymentMethodId: 1, cashboxId: cb,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('إلغاء دفعة مستفيد يعكس القيد، ويُرفض إن جعل الصندوق سالبًا', () async {
+    final repo = StationRepository(db);
+    final b = await repo.createBeneficiary(name: 'مستفيد إلغاء');
+    await svc.receivePayment(beneficiaryId: b, amount: 300, paymentMethodId: 1, cashboxId: 1);
+    final pay = (await db.query("SELECT id FROM payments WHERE beneficiary_id=? ORDER BY id DESC", args: [b])).first['id'] as int;
+    final before = await cashboxBalance(1);
+    await svc.cancelPayment(pay, 1, 'خطأ');
+    expect(await cashboxBalance(1), before - 300);
+    await svc.receivePayment(beneficiaryId: b, amount: 300, paymentMethodId: 1, cashboxId: 1);
+    final pay2 = (await db.query("SELECT id FROM payments WHERE beneficiary_id=? AND status='posted'", args: [b])).first['id'] as int;
+    await db.transaction((tx) => tx.rawUpdate('UPDATE cashboxes SET current_balance=0 WHERE id=1'));
+    await expectLater(svc.cancelPayment(pay2, 1, 'خطأ'), throwsStateError);
+  });
+
+  test('حذف مستفيد برصيد غير صفر مرفوض، وتعديل الافتتاحي يقيّد فرقًا', () async {
+    final repo = StationRepository(db);
+    final b = await repo.createBeneficiary(name: 'برصيد', opening: 500);
+    await expectLater(repo.deleteBeneficiary(b, 1, 'سبب'), throwsStateError);
+    final net = await accountNet('1200');
+    await repo.updateBeneficiary(b, {'opening_balance': 800}, 1);
+    expect((await accountNet('1200')) - net, 300);
+    await expectLater(repo.updateBeneficiary(b, {'status': 'x'}, 1), throwsArgumentError);
+  });
+
+  test('عكس سقاية الشريك لا يُحسب أرباحًا', () async {
+    await useSolar6000();
+    final p = await db.insert('partners', {'name': 'شريك أرباح', 'ownership_mode': 'shares'});
+    final id = await irrigationFor(partnerId: p, start: DateTime(2026, 5, 3, 8));
+    await svc.cancelIrrigation(id, 1, 'خطأ');
+    final sum = await StationRepository(db).partyFinancialSummary('partner', p);
+    expect(sum['earnings'], 0);
+    expect(sum['paid'], 0);
+    expect(sum['balance'], 0);
+  });
 }

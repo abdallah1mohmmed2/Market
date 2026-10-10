@@ -1,3 +1,4 @@
+import '../core/app_clock.dart';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
@@ -79,7 +80,7 @@ class ReportService {
     String? category,
     String? status,
   }) async {
-    final started = DateTime.now();
+    final started = AppClock.now();
     final currentType = (await repo.settings())['system_type'] ?? 'diesel';
     if (key == 'diesel_inventory' && currentType != 'diesel') {
       throw StateError('تقرير الديزل غير متاح لأن المنظومة الحالية ليست ديزل');
@@ -213,9 +214,9 @@ class ReportService {
       'report_key': key,
       'filters_json':
           '{"from":"${from?.toIso8601String()}","to":"${to?.toIso8601String()}","systemType":"$systemType"}',
-      'generated_at': DateTime.now().toIso8601String(),
+      'generated_at': AppClock.now().toIso8601String(),
       'row_count': rows.length,
-      'duration_ms': DateTime.now().difference(started).inMilliseconds,
+      'duration_ms': AppClock.now().difference(started).inMilliseconds,
     });
     return doc.save();
   }
