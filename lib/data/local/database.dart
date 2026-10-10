@@ -478,6 +478,11 @@ class AppDatabase {
     );
   }
 
+  Future<List<Map<String, Object?>>> rawQuery(
+    String sql, [
+    List<Object?>? args,
+  ]) async => (await db).rawQuery(sql, args);
+
   Future<int> insert(
     String table,
     Map<String, Object?> values, {

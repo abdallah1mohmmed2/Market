@@ -3,7 +3,7 @@ import '../core/app_prefs.dart';
 import '../core/period_ranges.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import '../core/theme.dart';
@@ -1276,8 +1276,8 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
           paymentReceipts = receipts;
           paymentDisbursements = disbursements;
           h = [
-            ...receipts.map((x) => {...x}),
-            ...disbursements.map((x) => {...x}),
+            ...receipts.map((x) => <String, Object?>{...x}),
+            ...disbursements.map((x) => <String, Object?>{...x}),
           ]..sort((a,b) => '${b['date']}'.compareTo('${a['date']}'));
           break;
         case 'queue':
@@ -1467,7 +1467,6 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             ])),
           ]),
-        ),
       );
 
   Widget historyView(BuildContext c) {
@@ -1731,6 +1730,7 @@ class _TimelineItem extends StatelessWidget {
         ]),
       )),
     ],
+    ),
   );
 }
 
@@ -1972,7 +1972,7 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
                   final cols=box.maxWidth>=1100?3:box.maxWidth>=720?2:1; final gap=12.0; final w=(box.maxWidth-gap*(cols-1))/cols;
                   return SingleChildScrollView(child:Wrap(spacing:gap,runSpacing:gap,children:rows.map((x){
                     final b=(x['balance'] as num?)?.round()??0;
-                    return SizedBox(width:w,child:InkWell(borderRadius:BorderRadius.circular(24),onTap:()=>details(x),onLongPress:()=>showModalBottomSheet(context:context,showDragHandle:true,builder:(bc)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('تعديل معلومات المستخدم'),onTap:(){Navigator.pop(bc);edit(x);}),if(widget.manager)ListTile(leading:const Icon(Icons.delete_outline,color:Colors.red),title:const Text('حذف'),onTap:(){Navigator.pop(bc);remove(x);})]))),child:Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[CircleAvatar(child:const Icon(Icons.agriculture_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(x);if(v=='delete'&&widget.manager)remove(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),const SizedBox(height:10),Text('${x['phone']??'بدون هاتف'} • ${x['jerba_number']??'بدون رقم جربة'}',style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:10),Text(AccountingCalculations.balanceLabel(b),style:TextStyle(fontWeight:FontWeight.w900,color:b>0?Colors.red:_green)),const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:()=>details(x),icon:const Icon(Icons.open_in_new),label:const Text('التفاصيل')))]))));
+                    return SizedBox(width:w,child:InkWell(borderRadius:BorderRadius.circular(24),onTap:()=>details(x),onLongPress:()=>showModalBottomSheet(context:context,showDragHandle:true,builder:(bc)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('تعديل معلومات المستخدم'),onTap:(){Navigator.pop(bc);edit(x);}),if(widget.manager)ListTile(leading:const Icon(Icons.delete_outline,color:Colors.red),title:const Text('حذف'),onTap:(){Navigator.pop(bc);remove(x);})]))),child:Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[CircleAvatar(child:const Icon(Icons.agriculture_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(x);if(v=='delete'&&widget.manager)remove(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),const SizedBox(height:10),Text('${x['phone']??'بدون هاتف'} • ${x['jerba_number']??'بدون رقم جربة'}',style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:10),Text(AccountingCalculations.balanceLabel(b),style:TextStyle(fontWeight:FontWeight.w900,color:b>0?Colors.red:_green)),const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:()=>details(x),icon:const Icon(Icons.open_in_new),label:const Text('التفاصيل'))))]))))));
                   }).toList()));
                 }),
         ),
@@ -3353,7 +3353,7 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true && id != null) {
-      await widget.r.enqueue(id, userId: widget.userId);
+      await widget.r.enqueue(id!, userId: widget.userId);
       await load();
     }
   }
@@ -3401,7 +3401,7 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true && id != null) {
-      if (!await runGuarded(context, () => widget.r.createBooking(id, n.text, userId: widget.userId))) return;
+      if (!await runGuarded(context, () => widget.r.createBooking(id!, n.text, userId: widget.userId))) return;
       await load();
     }
   }
@@ -5347,8 +5347,8 @@ class _PartnersState extends State<PartnersPage> {
       msg('أضف طريقة دفع وصندوقًا أولًا');
       return;
     }
-    int pm = methods.first['id'] as int;
-    int cb = cash.first['id'] as int;
+    int? pm = methods.first['id'] as int;
+    int? cb = cashboxForMethod(methods, cash, pm, null);
     final amount = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -5363,29 +5363,15 @@ class _PartnersState extends State<PartnersPage> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'المبلغ'),
               ),
-              DropdownButtonFormField<int>(
-                value: pm,
-                items: [
-                  for (final m in methods)
-                    DropdownMenuItem(
-                      value: m['id'] as int,
-                      child: Text('${m['name']}'),
-                    ),
-                ],
-                onChanged: (v) => s(() => pm = v!),
-                decoration: const InputDecoration(labelText: 'طريقة الدفع'),
-              ),
-              DropdownButtonFormField<int>(
-                value: cb,
-                items: [
-                  for (final b in cash)
-                    DropdownMenuItem(
-                      value: b['id'] as int,
-                      child: Text('${b['name']}'),
-                    ),
-                ],
-                onChanged: (v) => s(() => cb = v!),
-                decoration: const InputDecoration(labelText: 'الصندوق'),
+              ...methodCashboxFields(
+                methods: methods,
+                cash: cash,
+                method: pm,
+                cb: cb,
+                onChanged: (m, b) => s(() {
+                  pm = m;
+                  cb = b;
+                }),
               ),
             ],
           ),
@@ -5410,8 +5396,8 @@ class _PartnersState extends State<PartnersPage> {
         await widget.r.accounting.payPartner(
           partnerId: x['id'] as int,
           amount: int.parse(amount.text),
-          paymentMethodId: pm,
-          cashboxId: cb,
+          paymentMethodId: pm!,
+          cashboxId: cb!,
           userId: widget.userId,
         );
         await load();
