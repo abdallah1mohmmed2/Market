@@ -17,6 +17,15 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    afterEvaluate {
+        if (name == "file_picker") {
+            extensions.findByName("android")?.let { androidExtension ->
+                androidExtension.javaClass
+                    .getMethod("setCompileSdkVersion", Integer.TYPE)
+                    .invoke(androidExtension, 36)
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {
