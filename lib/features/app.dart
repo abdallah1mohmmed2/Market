@@ -27,20 +27,27 @@ String friendlyError(Object e) {
   if (e is ArgumentError && e.message != null) return '${e.message}';
   if (e is StateError) return e.message;
   final x = '$e';
-  if (x.contains('carried_diesel_liters') || x.contains('no such column')) return 'نسخة قاعدة البيانات قديمة. أعد فتح التطبيق ليتم تحديث قاعدة البيانات تلقائيًا.';
+  if (x.contains('carried_diesel_liters') || x.contains('no such column'))
+    return 'نسخة قاعدة البيانات قديمة. أعد فتح التطبيق ليتم تحديث قاعدة البيانات تلقائيًا.';
   if (x.contains('UNIQUE')) return 'القيمة موجودة مسبقًا.';
-  if (x.contains('FOREIGN KEY')) return 'لا يمكن حفظ العملية لأن البيانات المرتبطة غير صحيحة.';
+  if (x.contains('FOREIGN KEY'))
+    return 'لا يمكن حفظ العملية لأن البيانات المرتبطة غير صحيحة.';
   return x.replaceAll('DatabaseException', 'خطأ في قاعدة البيانات');
 }
 
 /// ينفّذ عملية كتابة ويعرض للمستخدم رسالة مفهومة عند الفشل بدل تمرير الاستثناء.
-Future<bool> runGuarded(BuildContext context, Future<void> Function() action) async {
+Future<bool> runGuarded(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
   try {
     await action();
     return true;
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
     return false;
   }
@@ -81,7 +88,9 @@ Future<String?> askReason(
             child: const Text('تراجع'),
           ),
           FilledButton(
-            onPressed: c.text.trim().isEmpty ? null : () => Navigator.pop(d, true),
+            onPressed: c.text.trim().isEmpty
+                ? null
+                : () => Navigator.pop(d, true),
             child: Text(confirmLabel),
           ),
         ],
@@ -135,7 +144,9 @@ List<Widget> methodCashboxFields({
       Padding(
         padding: const EdgeInsets.only(top: 8),
         child: InputDecorator(
-          decoration: const InputDecoration(labelText: 'الصندوق (مرتبط بطريقة الدفع)'),
+          decoration: const InputDecoration(
+            labelText: 'الصندوق (مرتبط بطريقة الدفع)',
+          ),
           child: Text('${sel?['cashbox_name'] ?? cb}'),
         ),
       )
@@ -144,7 +155,10 @@ List<Widget> methodCashboxFields({
         value: cb,
         items: [
           for (final x in cash)
-            DropdownMenuItem(value: x['id'] as int, child: Text('${x['name']}')),
+            DropdownMenuItem(
+              value: x['id'] as int,
+              child: Text('${x['name']}'),
+            ),
         ],
         onChanged: (v) => onChanged(method, v),
         decoration: const InputDecoration(labelText: 'الصندوق'),
@@ -224,15 +238,17 @@ String settingDisplay(String k, String v) => switch (k) {
     'keep' || 'keep_order' => 'إبقاء الدور',
     _ => v,
   },
-  'week_start' => {
-    'saturday': 'السبت',
-    'sunday': 'الأحد',
-    'monday': 'الاثنين',
-    'tuesday': 'الثلاثاء',
-    'wednesday': 'الأربعاء',
-    'thursday': 'الخميس',
-    'friday': 'الجمعة',
-  }[v] ?? v,
+  'week_start' =>
+    {
+          'saturday': 'السبت',
+          'sunday': 'الأحد',
+          'monday': 'الاثنين',
+          'tuesday': 'الثلاثاء',
+          'wednesday': 'الأربعاء',
+          'thursday': 'الخميس',
+          'friday': 'الجمعة',
+        }[v] ??
+        v,
   _ => v,
 };
 String categoryName(String v) =>
@@ -539,7 +555,11 @@ class _ShellState extends State<AdminShell> {
     try {
       final x = await repo.dashboard();
       final cfg = await SystemConfig.load(repo);
-      if (mounted) setState(() { counts = x; systemType = cfg.type; });
+      if (mounted)
+        setState(() {
+          counts = x;
+          systemType = cfg.type;
+        });
     } catch (_) {}
   }
 
@@ -652,7 +672,13 @@ class _ShellState extends State<AdminShell> {
                         '${counts['unread_notifications'] ?? 0}',
                         _cyan,
                       ),
-                      _badge('حالة الرصيد', AccountingCalculations.balanceLabel((counts['remaining'] as num?)?.round() ?? 0), _green),
+                      _badge(
+                        'حالة الرصيد',
+                        AccountingCalculations.balanceLabel(
+                          (counts['remaining'] as num?)?.round() ?? 0,
+                        ),
+                        _green,
+                      ),
                     ],
                   ),
                 ),
@@ -731,7 +757,11 @@ class _ShellState extends State<AdminShell> {
         manager: role == AppRole.manager,
       ),
       2 => NewIrrigationPage(repo, manager: role == AppRole.manager),
-      3 => IrrigationsPage(repo, manager: role == AppRole.manager, userId: widget.userId),
+      3 => IrrigationsPage(
+        repo,
+        manager: role == AppRole.manager,
+        userId: widget.userId,
+      ),
       4 => SessionsPage(repo, userId: widget.userId),
       5 => QueueBookingPage(
         repo,
@@ -742,13 +772,25 @@ class _ShellState extends State<AdminShell> {
       7 => PaymentsPage(repo, userId: widget.userId),
       8 => CashboxesPage(repo, userId: widget.userId),
       9 => ExpensesPage(repo, userId: widget.userId),
-      10 => WorkersPage(repo, userId: widget.userId),
-      11 => PartnersPage(repo, userId: widget.userId),
+      10 => WorkersPage(
+        repo,
+        userId: widget.userId,
+        manager: role == AppRole.manager,
+      ),
+      11 => PartnersPage(
+        repo,
+        userId: widget.userId,
+        manager: role == AppRole.manager,
+      ),
       12 => JournalPage(repo),
       13 => LedgerPage(repo),
       14 => ReportsPage(repo),
       15 => NotificationsPage(repo),
-      16 => SettingsPage(repo, userId: widget.userId, onSystemTypeChanged: (v) => refreshCounts()),
+      16 => SettingsPage(
+        repo,
+        userId: widget.userId,
+        onSystemTypeChanged: (v) => refreshCounts(),
+      ),
       17 => BackupPage(repo),
       18 => PerformancePage(repo),
       _ => DashboardPage(repo, onOpen: go),
@@ -873,7 +915,9 @@ class _DashboardState extends State<DashboardPage> {
           c = await widget.r.currentSession(),
           cfg = await SystemConfig.load(widget.r);
       final b = cfg.isDiesel ? await widget.r.dieselStock() : 0.0;
-      final w = cfg.isDiesel ? await widget.r.dieselWarning() : <String, Object?>{};
+      final w = cfg.isDiesel
+          ? await widget.r.dieselWarning()
+          : <String, Object?>{};
       if (mounted)
         setState(() {
           d = a;
@@ -1126,6 +1170,7 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
   List<Map<String, Object?>> irrigations = [];
   Map<String, Object?> financial = {};
   bool loading = true;
+  String? loadError;
   DateTime? filterFrom, filterTo;
   String paymentMovementFilter = 'all';
   DateTime? paymentFrom, paymentTo;
@@ -1144,91 +1189,272 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
     ];
     return all.where((x) {
       final group = '${x['movement_group']}';
-      if (paymentMovementFilter != 'all' && group != paymentMovementFilter) return false;
+      if (paymentMovementFilter != 'all' && group != paymentMovementFilter)
+        return false;
       final d = DateTime.tryParse('${x['date'] ?? ''}');
-      if (paymentFrom != null && (d == null || d.isBefore(DateTime(paymentFrom!.year, paymentFrom!.month, paymentFrom!.day)))) return false;
-      if (paymentTo != null && (d == null || d.isAfter(DateTime(paymentTo!.year, paymentTo!.month, paymentTo!.day, 23, 59, 59)))) return false;
+      if (paymentFrom != null &&
+          (d == null ||
+              d.isBefore(
+                DateTime(
+                  paymentFrom!.year,
+                  paymentFrom!.month,
+                  paymentFrom!.day,
+                ),
+              )))
+        return false;
+      if (paymentTo != null &&
+          (d == null ||
+              d.isAfter(
+                DateTime(
+                  paymentTo!.year,
+                  paymentTo!.month,
+                  paymentTo!.day,
+                  23,
+                  59,
+                  59,
+                ),
+              )))
+        return false;
       return true;
-    }).toList()..sort((a,b) => '${b['date']}'.compareTo('${a['date']}'));
+    }).toList()..sort((a, b) => '${b['date']}'.compareTo('${a['date']}'));
   }
 
   Future<void> pickPaymentDate(bool fromDate) async {
     final picked = await showDatePicker(
-      context: context, firstDate: DateTime(2020), lastDate: DateTime(2100),
-      initialDate: fromDate ? (paymentFrom ?? AppClock.now()) : (paymentTo ?? AppClock.now()),
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDate: fromDate
+          ? (paymentFrom ?? AppClock.now())
+          : (paymentTo ?? AppClock.now()),
       locale: const Locale('ar'),
     );
     if (picked == null || !mounted) return;
-    setState(() { if (fromDate) paymentFrom = picked; else paymentTo = picked; });
+    setState(() {
+      if (fromDate)
+        paymentFrom = picked;
+      else
+        paymentTo = picked;
+    });
   }
 
   Widget paymentMethodMovements(BuildContext c) {
     if (widget.kind != 'payment_method') return const SizedBox.shrink();
     final rows = _paymentRows();
-    final receipts = rows.where((x) => x['movement_group'] == 'مقبوضات').toList();
+    final receipts = rows
+        .where((x) => x['movement_group'] == 'مقبوضات')
+        .toList();
     final disb = rows.where((x) => x['movement_group'] == 'مسلّمات').toList();
-    final received = receipts.fold<int>(0, (s,x) => s + ((x['amount'] as num?)?.round() ?? 0));
-    final delivered = disb.fold<int>(0, (s,x) => s + ((x['amount'] as num?)?.round() ?? 0));
+    final received = receipts.fold<int>(
+      0,
+      (s, x) => s + ((x['amount'] as num?)?.round() ?? 0),
+    );
+    final delivered = disb.fold<int>(
+      0,
+      (s, x) => s + ((x['amount'] as num?)?.round() ?? 0),
+    );
     final scheme = Theme.of(c).colorScheme;
-    Widget movementCard(Map<String,Object?> x) {
+    Widget movementCard(Map<String, Object?> x) {
       final incoming = x['movement_group'] == 'مقبوضات';
       return Container(
-        margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest.withOpacity(.38),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: (incoming ? _green : _purple).withOpacity(.16)),
+          border: Border.all(
+            color: (incoming ? _green : _purple).withOpacity(.16),
+          ),
         ),
-        child: Row(children: [
-          Container(width: 40,height: 40,decoration: BoxDecoration(color:(incoming?_green:_purple).withOpacity(.12),borderRadius:BorderRadius.circular(12)),child:Icon(incoming?Icons.south_west_rounded:Icons.north_east_rounded,color:incoming?_green:_purple)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,children:[
-            Text('${x['party_name'] ?? x['description'] ?? 'حركة'}',style:const TextStyle(fontWeight:FontWeight.w900)),
-            const SizedBox(height:3), Text('${x['date'] ?? '-'} • ${x['notes'] ?? ''}',style:TextStyle(fontSize:12,color:scheme.onSurfaceVariant)),
-          ])),
-          Column(crossAxisAlignment:CrossAxisAlignment.end,children:[Text(money(x['amount']),style:const TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:3),Text(incoming?'مقبوضات':'مسلّمات',style:TextStyle(fontSize:12,color:incoming?_green:_purple))]),
-        ]),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: (incoming ? _green : _purple).withOpacity(.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                incoming ? Icons.south_west_rounded : Icons.north_east_rounded,
+                color: incoming ? _green : _purple,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${x['party_name'] ?? x['description'] ?? 'حركة'}',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${x['date'] ?? '-'} • ${x['notes'] ?? ''}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  money(x['amount']),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  incoming ? 'مقبوضات' : 'مسلّمات',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: incoming ? _green : _purple,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       );
     }
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color:scheme.surface,borderRadius:BorderRadius.circular(26),border:Border.all(color:scheme.outlineVariant.withOpacity(.35))),
-      child: Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[Icon(Icons.swap_vert_rounded,color:scheme.primary),const SizedBox(width:10),const Expanded(child:Text('المسلّمات والمقبوضات',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900))),Text('${rows.length} حركة',style:TextStyle(color:scheme.onSurfaceVariant))]),
-        const SizedBox(height:12),
-        Wrap(spacing:10,runSpacing:10,children:[
-          metric(c,'إجمالي المقبوضات',money(received),Icons.south_west_rounded,_green),
-          metric(c,'إجمالي المسلّمات',money(delivered),Icons.north_east_rounded,_purple),
-          metric(c,'الصافي',money(received-delivered),Icons.account_balance_wallet_rounded,_blue),
-        ]),
-        const SizedBox(height:14),
-        Wrap(spacing:8,runSpacing:8,children:[
-          ChoiceChip(label:const Text('الكل'),selected:paymentMovementFilter=='all',onSelected:(_)=>setState(()=>paymentMovementFilter='all')),
-          ChoiceChip(label:const Text('المقبوضات'),selected:paymentMovementFilter=='مقبوضات',onSelected:(_)=>setState(()=>paymentMovementFilter='مقبوضات')),
-          ChoiceChip(label:const Text('المسلّمات'),selected:paymentMovementFilter=='مسلّمات',onSelected:(_)=>setState(()=>paymentMovementFilter='مسلّمات')),
-          OutlinedButton.icon(onPressed:()=>pickPaymentDate(true),icon:const Icon(Icons.date_range),label:Text(paymentFrom==null?'من تاريخ':'من ${DateFormat('yyyy/MM/dd').format(paymentFrom!)}')),
-          OutlinedButton.icon(onPressed:()=>pickPaymentDate(false),icon:const Icon(Icons.event),label:Text(paymentTo==null?'إلى تاريخ':'إلى ${DateFormat('yyyy/MM/dd').format(paymentTo!)}')),
-        ]),
-        const SizedBox(height:12),
-        if (rows.isEmpty) const EmptyView('لا توجد حركة مطابقة للفلاتر') else Column(children:[for(final x in rows.take(200)) movementCard(x)]),
-      ]),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.swap_vert_rounded, color: scheme.primary),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'المسلّمات والمقبوضات',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+              ),
+              Text(
+                '${rows.length} حركة',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              metric(
+                c,
+                'إجمالي المقبوضات',
+                money(received),
+                Icons.south_west_rounded,
+                _green,
+              ),
+              metric(
+                c,
+                'إجمالي المسلّمات',
+                money(delivered),
+                Icons.north_east_rounded,
+                _purple,
+              ),
+              metric(
+                c,
+                'الصافي',
+                money(received - delivered),
+                Icons.account_balance_wallet_rounded,
+                _blue,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('الكل'),
+                selected: paymentMovementFilter == 'all',
+                onSelected: (_) =>
+                    setState(() => paymentMovementFilter = 'all'),
+              ),
+              ChoiceChip(
+                label: const Text('المقبوضات'),
+                selected: paymentMovementFilter == 'مقبوضات',
+                onSelected: (_) =>
+                    setState(() => paymentMovementFilter = 'مقبوضات'),
+              ),
+              ChoiceChip(
+                label: const Text('المسلّمات'),
+                selected: paymentMovementFilter == 'مسلّمات',
+                onSelected: (_) =>
+                    setState(() => paymentMovementFilter = 'مسلّمات'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => pickPaymentDate(true),
+                icon: const Icon(Icons.date_range),
+                label: Text(
+                  paymentFrom == null
+                      ? 'من تاريخ'
+                      : 'من ${DateFormat('yyyy/MM/dd').format(paymentFrom!)}',
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => pickPaymentDate(false),
+                icon: const Icon(Icons.event),
+                label: Text(
+                  paymentTo == null
+                      ? 'إلى تاريخ'
+                      : 'إلى ${DateFormat('yyyy/MM/dd').format(paymentTo!)}',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (rows.isEmpty)
+            const EmptyView('لا توجد حركة مطابقة للفلاتر')
+          else
+            Column(children: [for (final x in rows.take(200)) movementCard(x)]),
+        ],
+      ),
     );
   }
 
   Future<void> load() async {
+    if (loadError != null && mounted) setState(() => loadError = null);
     try {
       late Map<String, Object?> d;
       List<Map<String, Object?>> h = [];
       switch (widget.kind) {
         case 'beneficiary':
           d = await widget.r.beneficiaryDetails(widget.id);
-          h = await widget.r.beneficiaryStatement(widget.id);
-          financial = await widget.r.partyFinancialSummary('beneficiary', widget.id);
-          irrigations = await widget.r.partyIrrigations('beneficiary', widget.id);
+          // الكشف تصاعدي لحساب الرصيد الجاري؛ نعرضه الأحدث أولًا.
+          h = (await widget.r.beneficiaryStatement(widget.id)).reversed.toList();
+          financial = await widget.r.partyFinancialSummary(
+            'beneficiary',
+            widget.id,
+          );
+          irrigations = await widget.r.partyIrrigations(
+            'beneficiary',
+            widget.id,
+          );
           break;
         case 'worker':
           d = (await widget.r.db.query(
-            'workers', where: 'id=?', whereArgs: [widget.id], limit: 1,
+            'workers',
+            where: 'id=?',
+            whereArgs: [widget.id],
+            limit: 1,
           )).first;
           h = await widget.r.workerTransactions(widget.id);
           financial = await widget.r.partyFinancialSummary('worker', widget.id);
@@ -1236,25 +1462,38 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
           break;
         case 'partner':
           d = (await widget.r.db.query(
-            'partners', where: 'id=?', whereArgs: [widget.id], limit: 1,
+            'partners',
+            where: 'id=?',
+            whereArgs: [widget.id],
+            limit: 1,
           )).first;
           h = await widget.r.partnerTransactions(widget.id);
-          financial = await widget.r.partyFinancialSummary('partner', widget.id);
+          financial = await widget.r.partyFinancialSummary(
+            'partner',
+            widget.id,
+          );
           irrigations = await widget.r.partyIrrigations('partner', widget.id);
           break;
         case 'cashbox':
           d = (await widget.r.db.query(
-            'cashboxes', where: 'id=?', whereArgs: [widget.id], limit: 1,
+            'cashboxes',
+            where: 'id=?',
+            whereArgs: [widget.id],
+            limit: 1,
           )).first;
           h = await widget.r.db.query(
             'cashbox_transfers',
             where: 'from_cashbox_id=? OR to_cashbox_id=?',
-            whereArgs: [widget.id, widget.id], orderBy: 'date DESC',
+            whereArgs: [widget.id, widget.id],
+            orderBy: 'date DESC',
           );
           break;
         case 'payment_method':
           d = (await widget.r.db.query(
-            'payment_methods', where: 'id=?', whereArgs: [widget.id], limit: 1,
+            'payment_methods',
+            where: 'id=?',
+            whereArgs: [widget.id],
+            limit: 1,
           )).first;
           final receipts = await widget.r.db.rawQuery(
             '''SELECT p.id,p.date,p.amount,p.reference_number,p.notes,
@@ -1265,20 +1504,24 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
                LEFT JOIN workers w ON w.id=p.worker_id
                LEFT JOIN partners pt ON pt.id=p.partner_id
                WHERE p.payment_method_id=? AND p.status='posted'
-               ORDER BY p.date DESC,p.id DESC''', [widget.id]);
+               ORDER BY p.date DESC,p.id DESC''',
+            [widget.id],
+          );
           final disbursements = await widget.r.db.rawQuery(
             '''SELECT e.id,e.date,e.amount,e.title description,e.notes,
                       COALESCE(e.title,'مصروف') party_name,
                       'مسلّمات' movement_group
                FROM expenses e
                WHERE e.payment_method_id=? AND e.status='posted'
-               ORDER BY e.date DESC,e.id DESC''', [widget.id]);
+               ORDER BY e.date DESC,e.id DESC''',
+            [widget.id],
+          );
           paymentReceipts = receipts;
           paymentDisbursements = disbursements;
           h = [
             ...receipts.map((x) => <String, Object?>{...x}),
             ...disbursements.map((x) => <String, Object?>{...x}),
-          ]..sort((a,b) => '${b['date']}'.compareTo('${a['date']}'));
+          ]..sort((a, b) => '${b['date']}'.compareTo('${a['date']}'));
           break;
         case 'queue':
           d = (await widget.r.db.query(
@@ -1286,8 +1529,10 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
             args: [widget.id],
           )).first;
           h = await widget.r.db.query(
-            'audit_logs', where: "record_id=? AND table_name='queue_entries'",
-            whereArgs: [widget.id], orderBy: 'created_at DESC',
+            'audit_logs',
+            where: "record_id=? AND table_name='queue_entries'",
+            whereArgs: [widget.id],
+            orderBy: 'created_at DESC',
           );
           break;
         case 'booking':
@@ -1296,16 +1541,34 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
             args: [widget.id],
           )).first;
           h = await widget.r.db.query(
-            'audit_logs', where: "record_id=? AND table_name='booking_requests'",
-            whereArgs: [widget.id], orderBy: 'created_at DESC',
+            'audit_logs',
+            where: "record_id=? AND table_name='booking_requests'",
+            whereArgs: [widget.id],
+            orderBy: 'created_at DESC',
           );
           break;
         case 'journal':
           d = (await widget.r.db.query(
-            'journal_entries', where: 'id=?', whereArgs: [widget.id], limit: 1,
+            'journal_entries',
+            where: 'id=?',
+            whereArgs: [widget.id],
+            limit: 1,
           )).first;
+          d = {
+            ...d,
+            'reference_number': _refLabel(d['reference_type'], d['reference_id']),
+          };
           h = await widget.r.db.query(
-            'journal_lines', where: 'journal_entry_id=?', whereArgs: [widget.id],
+            "SELECT jl.*,a.code||' • '||a.name description,"
+            "CASE WHEN jl.debit>0 THEN 'مدين' ELSE 'دائن' END"
+            "||COALESCE(' • '||COALESCE(b.name,w.name,p.name),'')"
+            "||COALESCE(' • '||jl.memo,'') notes "
+            'FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id '
+            'LEFT JOIN beneficiaries b ON b.id=jl.beneficiary_id '
+            'LEFT JOIN workers w ON w.id=jl.worker_id '
+            'LEFT JOIN partners p ON p.id=jl.partner_id '
+            'WHERE jl.journal_entry_id=? ORDER BY jl.id',
+            args: [widget.id],
           );
           break;
         default:
@@ -1317,39 +1580,80 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
           history = h;
           if (financial.isEmpty) financial = {};
           this.irrigations = irrigations;
+          loadError = null;
           loading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => loading = false);
+    } catch (e, st) {
+      debugPrint('RecordDetailsPage.load(${widget.kind}#${widget.id}) failed: $e\n$st');
+      if (mounted) {
+        setState(() {
+          loadError = '$e';
+          loading = false;
+        });
+      }
     }
   }
 
-  String label(String k) => {
-    'name': 'الاسم', 'phone': 'الهاتف', 'jerba_number': 'رقم الجربة',
-    'address': 'العنوان', 'location': 'الموقع', 'opening_balance': 'الرصيد الافتتاحي',
-    'carried_balance': 'الرصيد المرحل', 'pay_type': 'طريقة الاستحقاق',
-    'fixed_salary': 'الراتب الثابت', 'hourly_rate': 'أجر الساعة',
-    'percentage_rate': 'النسبة', 'ownership_mode': 'طريقة الملكية',
-    'ownership_percentage': 'نسبة الملكية', 'shares_count': 'عدد الحصص',
-    'current_balance': 'الرصيد الحالي', 'account_number': 'رقم الحساب',
-    'bank_name': 'اسم البنك', 'type': 'النوع', 'position': 'الترتيب',
-    'status': 'الحالة', 'created_at': 'تاريخ الإنشاء', 'date': 'التاريخ',
-    'amount': 'المبلغ', 'notes': 'الملاحظات', 'description': 'البيان',
-    'reference_number': 'المرجع', 'debit': 'المدين', 'credit': 'الدائن',
-    'memo': 'المذكرة', 'beneficiary_name': 'المستفيد', 'scheduled_start': 'بداية الموعد',
-    'scheduled_end': 'نهاية الموعد', 'cancel_reason': 'سبب الإلغاء',
-    'postponed_count': 'مرات التأجيل', 'created_by': 'أنشأ بواسطة',
-  }[k] ?? k.replaceAll('_', ' ');
+  String label(String k) =>
+      {
+        'name': 'الاسم',
+        'phone': 'الهاتف',
+        'jerba_number': 'رقم الجربة',
+        'address': 'العنوان',
+        'location': 'الموقع',
+        'opening_balance': 'الرصيد الافتتاحي',
+        'carried_balance': 'الرصيد المرحل',
+        'pay_type': 'طريقة الاستحقاق',
+        'fixed_salary': 'الراتب الثابت',
+        'hourly_rate': 'أجر الساعة',
+        'percentage_rate': 'النسبة',
+        'ownership_mode': 'طريقة الملكية',
+        'ownership_percentage': 'نسبة الملكية',
+        'shares_count': 'عدد الحصص',
+        'current_balance': 'الرصيد الحالي',
+        'account_number': 'رقم الحساب',
+        'bank_name': 'اسم البنك',
+        'type': 'النوع',
+        'position': 'الترتيب',
+        'status': 'الحالة',
+        'created_at': 'تاريخ الإنشاء',
+        'date': 'التاريخ',
+        'amount': 'المبلغ',
+        'notes': 'الملاحظات',
+        'description': 'البيان',
+        'reference_number': 'المرجع',
+        'debit': 'المدين',
+        'credit': 'الدائن',
+        'memo': 'المذكرة',
+        'beneficiary_name': 'المستفيد',
+        'scheduled_start': 'بداية الموعد',
+        'scheduled_end': 'نهاية الموعد',
+        'cancel_reason': 'سبب الإلغاء',
+        'postponed_count': 'مرات التأجيل',
+        'created_by': 'أنشأ بواسطة',
+      }[k] ??
+      k.replaceAll('_', ' ');
 
   String displayValue(String k, Object? v) {
     if (v == null || v.toString().trim().isEmpty) return '-';
     if (k == 'ownership_percentage' || k == 'percentage_rate') return '${v}%';
-    if (k == 'shares_count' || k == 'position' || k == 'postponed_count') return '$v';
-    if (['opening_balance', 'carried_balance', 'fixed_salary', 'hourly_rate',
-      'current_balance', 'amount', 'debit', 'credit'].contains(k)) return money(v);
+    if (k == 'shares_count' || k == 'position' || k == 'postponed_count')
+      return '$v';
+    if ([
+      'opening_balance',
+      'carried_balance',
+      'fixed_salary',
+      'hourly_rate',
+      'current_balance',
+      'amount',
+      'debit',
+      'credit',
+    ].contains(k))
+      return money(v);
     if (k == 'pay_type') return payTypeName('$v');
-    if (k == 'ownership_mode') return '$v' == 'percentage' ? 'نسبة ملكية' : 'عدد حصص';
+    if (k == 'ownership_mode')
+      return '$v' == 'percentage' ? 'نسبة ملكية' : 'عدد حصص';
     if (k == 'type') return statusName(v);
     if (k == 'status') return statusName(v);
     return '$v';
@@ -1358,27 +1662,31 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
   String primaryName() =>
       '${data['name'] ?? data['beneficiary_name'] ?? data['description'] ?? widget.title}';
 
-  String kindCaption() => {
-    'beneficiary': 'ملف المستفيد وكشف الحساب',
-    'worker': 'ملف العامل وحركات الاستحقاق والدفع',
-    'partner': 'ملف الشريك وحركات حصته',
-    'cashbox': 'الرصيد وحركة التحويلات',
-    'payment_method': 'بيانات طريقة الدفع وحركاتها',
-    'queue': 'حالة الدور وسجل الإجراءات',
-    'booking': 'تفاصيل الطلب وسجل المراجعة',
-    'journal': 'القيد المحاسبي وقيوده التفصيلية',
-  }[widget.kind] ?? 'تفاصيل السجل';
+  String kindCaption() =>
+      {
+        'beneficiary': 'ملف المستفيد وكشف الحساب',
+        'worker': 'ملف العامل وحركات الاستحقاق والدفع',
+        'partner': 'ملف الشريك وحركات حصته',
+        'cashbox': 'الرصيد وحركة التحويلات',
+        'payment_method': 'بيانات طريقة الدفع وحركاتها',
+        'queue': 'حالة الدور وسجل الإجراءات',
+        'booking': 'تفاصيل الطلب وسجل المراجعة',
+        'journal': 'القيد المحاسبي وقيوده التفصيلية',
+      }[widget.kind] ??
+      'تفاصيل السجل';
 
-  IconData kindIcon() => {
-    'beneficiary': Icons.agriculture_rounded,
-    'worker': Icons.engineering_rounded,
-    'partner': Icons.handshake_rounded,
-    'cashbox': Icons.account_balance_wallet_rounded,
-    'payment_method': Icons.payments_rounded,
-    'queue': Icons.format_list_numbered_rounded,
-    'booking': Icons.event_available_rounded,
-    'journal': Icons.receipt_long_rounded,
-  }[widget.kind] ?? Icons.description_rounded;
+  IconData kindIcon() =>
+      {
+        'beneficiary': Icons.agriculture_rounded,
+        'worker': Icons.engineering_rounded,
+        'partner': Icons.handshake_rounded,
+        'cashbox': Icons.account_balance_wallet_rounded,
+        'payment_method': Icons.payments_rounded,
+        'queue': Icons.format_list_numbered_rounded,
+        'booking': Icons.event_available_rounded,
+        'journal': Icons.receipt_long_rounded,
+      }[widget.kind] ??
+      Icons.description_rounded;
 
   List<MapEntry<String, Object?>> fieldsFor(List<String> keys) => keys
       .where((k) => data[k] != null && data[k].toString().trim().isNotEmpty)
@@ -1397,15 +1705,26 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label(k), style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+          Text(
+            label(k),
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          ),
           const SizedBox(height: 4),
-          Text(displayValue(k, v), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          Text(
+            displayValue(k, v),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          ),
         ],
       ),
     );
   }
 
-  Widget section(BuildContext c, String title, IconData icon, List<MapEntry<String, Object?>> fields) {
+  Widget section(
+    BuildContext c,
+    String title,
+    IconData icon,
+    List<MapEntry<String, Object?>> fields,
+  ) {
     if (fields.isEmpty) return const SizedBox.shrink();
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1413,61 +1732,117 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
       decoration: BoxDecoration(
         color: Theme.of(c).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Theme.of(c).colorScheme.outlineVariant.withOpacity(.35)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.045), blurRadius: 24, offset: const Offset(0, 8))],
+        border: Border.all(
+          color: Theme.of(c).colorScheme.outlineVariant.withOpacity(.35),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.045),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: Theme.of(c).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(13),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(c).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: Theme.of(c).colorScheme.primary),
               ),
-              child: Icon(icon, color: Theme.of(c).colorScheme.primary),
-            ),
-            const SizedBox(width: 12),
-            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-          ]),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
-          LayoutBuilder(builder: (_, box) {
-            final columns = box.maxWidth >= 1050 ? 4 : box.maxWidth >= 700 ? 3 : box.maxWidth >= 430 ? 2 : 1;
-            final gap = 10.0;
-            final width = (box.maxWidth - gap * (columns - 1)) / columns;
-            return Wrap(
-              spacing: gap, runSpacing: gap,
-              children: [for (final f in fields) SizedBox(width: width, child: fieldTile(c, f.key, f.value))],
-            );
-          }),
+          LayoutBuilder(
+            builder: (_, box) {
+              final columns = box.maxWidth >= 1050
+                  ? 4
+                  : box.maxWidth >= 700
+                  ? 3
+                  : box.maxWidth >= 430
+                  ? 2
+                  : 1;
+              final gap = 10.0;
+              final width = (box.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final f in fields)
+                    SizedBox(width: width, child: fieldTile(c, f.key, f.value)),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget metric(BuildContext c, String title, String value, IconData icon, Color color) =>
-      Container(
-          constraints: const BoxConstraints(minWidth: 170),
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topRight, end: Alignment.bottomLeft,
-              colors: [color.withOpacity(.18), color.withOpacity(.055)],
-            ),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: color.withOpacity(.18)),
-          ),
-          child: Row(children: [
-            Icon(icon, color: color, size: 28), const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant, fontSize: 12)),
+  Widget metric(
+    BuildContext c,
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) => Container(
+    constraints: const BoxConstraints(minWidth: 170),
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [color.withOpacity(.18), color.withOpacity(.055)],
+      ),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: color.withOpacity(.18)),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: color, size: 28),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: Theme.of(c).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
               const SizedBox(height: 3),
-              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-            ])),
-          ]),
-      );
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget historyView(BuildContext c) {
     if (history.isEmpty) {
@@ -1477,60 +1852,115 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
           color: Theme.of(c).colorScheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Column(children: [
-          Icon(Icons.timeline_rounded, size: 42), SizedBox(height: 8),
-          Text('لا توجد حركات مرتبطة بهذا السجل'),
-        ]),
+        child: const Column(
+          children: [
+            Icon(Icons.timeline_rounded, size: 42),
+            SizedBox(height: 8),
+            Text('لا توجد حركات مرتبطة بهذا السجل'),
+          ],
+        ),
       );
     }
-    return Column(children: [
-      for (int i = 0; i < history.length && i < 100; i++)
-        _TimelineItem(
-          first: i == 0,
-          last: i == history.length - 1 || i == 99,
-          title: _historyTitle(history[i]),
-          subtitle: _historySub(history[i]),
-          amount: _historyAmount(history[i]),
-        ),
-    ]);
+    const maxItems = 100;
+    final shown = history.length < maxItems ? history.length : maxItems;
+    return Column(
+      children: [
+        for (int i = 0; i < shown; i++)
+          _TimelineItem(
+            first: i == 0,
+            last: i == shown - 1,
+            title: _historyTitle(history[i]),
+            subtitle: _historySub(history[i]),
+            amount: _historyAmount(history[i]),
+          ),
+        if (history.length > maxItems)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(
+              'عرض أحدث $maxItems حركة من ${history.length}. استخدم «تصدير التقرير» لكامل الحركات.',
+              style: TextStyle(
+                color: Theme.of(c).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
-  String balanceText(Object? v) => AccountingCalculations.balanceLabel((v as num?)?.round() ?? 0);
+  /// المستفيد: الموجب = عليه. العامل/الشريك: الموجب = له (مستحق على المحطة).
+  String balanceText(Object? v) {
+    final n = (v as num?)?.round() ?? 0;
+    return widget.kind == 'beneficiary'
+        ? AccountingCalculations.balanceLabel(n)
+        : AccountingCalculations.partyDueLabel(n);
+  }
+
+  Color balanceColor(int b) => widget.kind == 'beneficiary'
+      ? (b > 0 ? Colors.red : _green)
+      : (b > 0 ? Colors.orange : (b < 0 ? Colors.red : _green));
 
   Future<void> pickDetailDate(bool fromDate) async {
     final picked = await showDatePicker(
       context: context,
-      firstDate: DateTime(2020), lastDate: DateTime(2100),
-      initialDate: fromDate ? (filterFrom ?? AppClock.now()) : (filterTo ?? AppClock.now()),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDate: fromDate
+          ? (filterFrom ?? AppClock.now())
+          : (filterTo ?? AppClock.now()),
       locale: const Locale('ar'),
     );
     if (!mounted || picked == null) return;
-    setState(() { if (fromDate) filterFrom = picked; else filterTo = picked; });
+    setState(() {
+      if (fromDate)
+        filterFrom = picked;
+      else
+        filterTo = picked;
+    });
   }
 
-  List<Map<String,Object?>> filteredIrrigations() => irrigations.where((x) {
+  List<Map<String, Object?>> filteredIrrigations() => irrigations.where((x) {
     final d = DateTime.tryParse('${x['date'] ?? x['start_datetime'] ?? ''}');
     if (d == null) return true;
-    if (filterFrom != null && d.isBefore(DateTime(filterFrom!.year, filterFrom!.month, filterFrom!.day))) return false;
-    if (filterTo != null && d.isAfter(DateTime(filterTo!.year, filterTo!.month, filterTo!.day, 23, 59, 59))) return false;
+    if (filterFrom != null &&
+        d.isBefore(
+          DateTime(filterFrom!.year, filterFrom!.month, filterFrom!.day),
+        ))
+      return false;
+    if (filterTo != null &&
+        d.isAfter(
+          DateTime(filterTo!.year, filterTo!.month, filterTo!.day, 23, 59, 59),
+        ))
+      return false;
     return true;
   }).toList();
 
   Future<void> printPersonReport() async {
-    final key = widget.kind == 'worker' ? 'worker_transactions' : widget.kind == 'partner' ? 'partner_accounts' : 'beneficiary_detailed';
+    final key = widget.kind == 'worker'
+        ? 'worker_transactions'
+        : widget.kind == 'partner'
+        ? 'partner_accounts'
+        : 'beneficiary_detailed';
     try {
-      await ReportService(widget.r).printPdf(key, from: filterFrom, to: filterTo,
+      await ReportService(widget.r).printPdf(
+        key,
+        from: filterFrom,
+        to: filterTo,
         beneficiaryId: widget.kind == 'beneficiary' ? widget.id : null,
         workerId: widget.kind == 'worker' ? widget.id : null,
         partnerId: widget.kind == 'partner' ? widget.id : null,
       );
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تصدير التقرير: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('تعذر تصدير التقرير: $e')));
     }
   }
 
   Widget financialPanel(BuildContext c) {
-    if (!['beneficiary','worker','partner'].contains(widget.kind)) return const SizedBox.shrink();
+    if (!['beneficiary', 'worker', 'partner'].contains(widget.kind))
+      return const SizedBox.shrink();
     final minutes = (financial['irrigation_minutes'] as num?)?.round() ?? 0;
     final total = (financial['irrigation_total'] as num?)?.round() ?? 0;
     final earnings = (financial['earnings'] as num?)?.round() ?? 0;
@@ -1540,141 +1970,455 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft,
-          colors: [Theme.of(c).colorScheme.primaryContainer.withOpacity(.7), Theme.of(c).colorScheme.surface]),
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            Theme.of(c).colorScheme.primaryContainer.withOpacity(.7),
+            Theme.of(c).colorScheme.surface,
+          ],
+        ),
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Theme.of(c).colorScheme.outlineVariant.withOpacity(.35)),
+        border: Border.all(
+          color: Theme.of(c).colorScheme.outlineVariant.withOpacity(.35),
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.insights_rounded, color: Theme.of(c).colorScheme.primary), const SizedBox(width: 10),
-          const Text('الملخص المالي والإحصائي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))]),
-        const SizedBox(height: 14),
-        LayoutBuilder(builder: (_, box) {
-          final n = box.maxWidth >= 950 ? 5 : box.maxWidth >= 650 ? 3 : 2;
-          final gap = 10.0; final w = (box.maxWidth - gap*(n-1))/n;
-          final items = <Widget>[
-            metric(c, 'استهلاك السقايات', '$minutes دقيقة', Icons.timer_outlined, _cyan),
-            metric(c, 'إجمالي السقايات', money(total), Icons.water_drop_outlined, _blue),
-            if (widget.kind != 'beneficiary') metric(c, 'الاستحقاقات/الأرباح', money(earnings), Icons.trending_up_rounded, _purple),
-            metric(c, 'الدفعات المسددة', money(paid), Icons.payments_outlined, _green),
-            metric(c, 'حالة الرصيد', balanceText(balance), Icons.account_balance_wallet_outlined, balance > 0 ? Colors.red : _green),
-          ];
-          return Wrap(spacing: gap, runSpacing: gap, children: [for (final item in items) SizedBox(width: w, child: item)]);
-        }),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.insights_rounded,
+                color: Theme.of(c).colorScheme.primary,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'الملخص المالي والإحصائي',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (_, box) {
+              final n = box.maxWidth >= 950
+                  ? 5
+                  : box.maxWidth >= 650
+                  ? 3
+                  : 2;
+              final gap = 10.0;
+              final w = (box.maxWidth - gap * (n - 1)) / n;
+              final items = <Widget>[
+                metric(
+                  c,
+                  'استهلاك السقايات',
+                  '$minutes دقيقة',
+                  Icons.timer_outlined,
+                  _cyan,
+                ),
+                metric(
+                  c,
+                  'إجمالي السقايات',
+                  money(total),
+                  Icons.water_drop_outlined,
+                  _blue,
+                ),
+                if (widget.kind != 'beneficiary')
+                  metric(
+                    c,
+                    'الاستحقاقات/الأرباح',
+                    money(earnings),
+                    Icons.trending_up_rounded,
+                    _purple,
+                  ),
+                metric(
+                  c,
+                  'الدفعات المسددة',
+                  money(paid),
+                  Icons.payments_outlined,
+                  _green,
+                ),
+                metric(
+                  c,
+                  'حالة الرصيد',
+                  balanceText(balance),
+                  Icons.account_balance_wallet_outlined,
+                  balanceColor(balance),
+                ),
+              ];
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final item in items) SizedBox(width: w, child: item),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
   Widget irrigationTable(BuildContext c) {
     final rows = filteredIrrigations();
     return Container(
-      margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: Theme.of(c).colorScheme.surface, borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Theme.of(c).colorScheme.outlineVariant.withOpacity(.35))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.water_drop_rounded, color: _cyan), const SizedBox(width: 10),
-          const Expanded(child: Text('السقايات المرتبطة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-          OutlinedButton.icon(onPressed: () => pickDetailDate(true), icon: const Icon(Icons.date_range), label: Text(filterFrom == null ? 'من تاريخ' : '${filterFrom!.day}/${filterFrom!.month}/${filterFrom!.year}')),
-          const SizedBox(width: 6),
-          OutlinedButton.icon(onPressed: () => pickDetailDate(false), icon: const Icon(Icons.event), label: Text(filterTo == null ? 'إلى تاريخ' : '${filterTo!.day}/${filterTo!.month}/${filterTo!.year}')),
-        ]),
-        const SizedBox(height: 12),
-        if (rows.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Center(child: Text('لا توجد سقايات ضمن الفلتر الحالي')))
-        else SingleChildScrollView(scrollDirection: Axis.horizontal, child: DataTable(
-          columns: const [DataColumn(label: Text('اليوم')), DataColumn(label: Text('التاريخ')), DataColumn(label: Text('التفاصيل')), DataColumn(label: Text('المدة')), DataColumn(label: Text('المستحق')), DataColumn(label: Text('المدفوع'))],
-          rows: [for (final x in rows) DataRow(cells: [
-            DataCell(Text(DateFormat('EEEE','ar').format(DateTime.tryParse('${x['date']}') ?? AppClock.now()))),
-            DataCell(Text('${x['date'] ?? '-'}'.split('T').first)),
-            DataCell(Text('${systemName('${x['system_type']}')} • ${x['notes'] ?? 'جلسة سقي'}')),
-            DataCell(Text('${x['minutes'] ?? 0} دقيقة')),
-            DataCell(Text(money(x['total_amount']))),
-            DataCell(Text(money(x['paid_amount']))),
-          ])],
-        )),
-      ]),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Theme.of(c).colorScheme.surface,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: Theme.of(c).colorScheme.outlineVariant.withOpacity(.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.water_drop_rounded, color: _cyan),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'السقايات المرتبطة',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => pickDetailDate(true),
+                icon: const Icon(Icons.date_range),
+                label: Text(
+                  filterFrom == null
+                      ? 'من تاريخ'
+                      : '${filterFrom!.day}/${filterFrom!.month}/${filterFrom!.year}',
+                ),
+              ),
+              const SizedBox(width: 6),
+              OutlinedButton.icon(
+                onPressed: () => pickDetailDate(false),
+                icon: const Icon(Icons.event),
+                label: Text(
+                  filterTo == null
+                      ? 'إلى تاريخ'
+                      : '${filterTo!.day}/${filterTo!.month}/${filterTo!.year}',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (rows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(child: Text('لا توجد سقايات ضمن الفلتر الحالي')),
+            )
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: const [
+                  DataColumn(label: Text('اليوم')),
+                  DataColumn(label: Text('التاريخ')),
+                  DataColumn(label: Text('التفاصيل')),
+                  DataColumn(label: Text('المدة')),
+                  DataColumn(label: Text('المستحق')),
+                  DataColumn(label: Text('المدفوع')),
+                ],
+                rows: [
+                  for (final x in rows)
+                    DataRow(
+                      cells: [
+                        DataCell(
+                          Text(
+                            DateFormat('EEEE', 'ar').format(
+                              DateTime.tryParse('${x['date']}') ??
+                                  AppClock.now(),
+                            ),
+                          ),
+                        ),
+                        DataCell(Text('${x['date'] ?? '-'}'.split('T').first)),
+                        DataCell(
+                          Text(
+                            '${systemName('${x['system_type']}')} • ${x['notes'] ?? 'جلسة سقي'}',
+                          ),
+                        ),
+                        DataCell(Text('${x['minutes'] ?? 0} دقيقة')),
+                        DataCell(Text(money(x['total_amount']))),
+                        DataCell(Text(money(x['paid_amount']))),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext c) {
     if (loading) return const LoadingView();
-    if (data.isEmpty) return Scaffold(appBar: AppBar(title: Text(widget.title)), body: const ErrorBox('تعذر العثور على السجل'));
+    if (loadError != null)
+      return Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          appBar: AppBar(title: Text(widget.title)),
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ErrorBox('تعذر تحميل بيانات هذا السجل:\n$loadError'),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () {
+                    setState(() => loading = true);
+                    load();
+                  },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    if (data.isEmpty)
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.title)),
+        body: const ErrorBox('تعذر العثور على السجل'),
+      );
 
     final name = primaryName();
-    final balance = (data['balance'] is Map) ? ((data['balance'] as Map)['balance'] as num?)?.round() : null;
+    final balance = (data['balance'] is Map)
+        ? ((data['balance'] as Map)['balance'] as num?)?.round()
+        : null;
     final current = (data['current_balance'] as num?)?.round();
     final debit = (data['debit'] as num?)?.round();
     final credit = (data['credit'] as num?)?.round();
 
-    final basic = fieldsFor(['name', 'phone', 'jerba_number', 'address', 'location', 'beneficiary_name', 'account_number', 'bank_name', 'type', 'status']);
-    final accounting = fieldsFor(['opening_balance', 'carried_balance', 'fixed_salary', 'hourly_rate', 'percentage_rate', 'ownership_mode', 'ownership_percentage', 'shares_count', 'current_balance', 'position', 'postponed_count']);
-    final meta = fieldsFor(['date', 'created_at', 'scheduled_start', 'scheduled_end', 'reference_number', 'description', 'memo', 'notes', 'cancel_reason']);
+    final basic = fieldsFor([
+      'name',
+      'phone',
+      'jerba_number',
+      'address',
+      'location',
+      'beneficiary_name',
+      'account_number',
+      'bank_name',
+      'type',
+      'status',
+    ]);
+    final accounting = fieldsFor([
+      'opening_balance',
+      'carried_balance',
+      'fixed_salary',
+      'hourly_rate',
+      'percentage_rate',
+      'ownership_mode',
+      'ownership_percentage',
+      'shares_count',
+      'current_balance',
+      'position',
+      'postponed_count',
+    ]);
+    final meta = fieldsFor([
+      'date',
+      'created_at',
+      'scheduled_start',
+      'scheduled_end',
+      'reference_number',
+      'description',
+      'memo',
+      'notes',
+      'cancel_reason',
+    ]);
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: Theme.of(c).scaffoldBackgroundColor,
         appBar: AppBar(
-          title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          title: Text(
+            widget.title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
           actions: [
-            if (['beneficiary','worker','partner'].contains(widget.kind)) IconButton(onPressed: printPersonReport, tooltip: 'تصدير التقرير', icon: const Icon(Icons.picture_as_pdf_rounded)),
-            IconButton(onPressed: load, tooltip: 'تحديث', icon: const Icon(Icons.refresh_rounded)),
+            if (['beneficiary', 'worker', 'partner'].contains(widget.kind))
+              IconButton(
+                onPressed: printPersonReport,
+                tooltip: 'تصدير التقرير',
+                icon: const Icon(Icons.picture_as_pdf_rounded),
+              ),
+            IconButton(
+              onPressed: load,
+              tooltip: 'تحديث',
+              icon: const Icon(Icons.refresh_rounded),
+            ),
           ],
         ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(22, 12, 22, 32),
           children: [
             financialPanel(c),
-            if (['beneficiary','worker','partner'].contains(widget.kind)) irrigationTable(c),
+            if (['beneficiary', 'worker', 'partner'].contains(widget.kind))
+              irrigationTable(c),
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topRight, end: Alignment.bottomLeft,
-                  colors: [Theme.of(c).colorScheme.primaryContainer, Theme.of(c).colorScheme.surface],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [
+                    Theme.of(c).colorScheme.primaryContainer,
+                    Theme.of(c).colorScheme.surface,
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Theme.of(c).colorScheme.primary.withOpacity(.14)),
-              ),
-              child: Row(children: [
-                Container(
-                  width: 70, height: 70,
-                  decoration: BoxDecoration(
-                    color: Theme.of(c).colorScheme.primary,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [BoxShadow(color: Theme.of(c).colorScheme.primary.withOpacity(.25), blurRadius: 22, offset: const Offset(0, 9))],
-                  ),
-                  child: Icon(kindIcon(), color: Theme.of(c).colorScheme.onPrimary, size: 34),
+                border: Border.all(
+                  color: Theme.of(c).colorScheme.primary.withOpacity(.14),
                 ),
-                const SizedBox(width: 17),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  Text(kindCaption(), style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant)),
-                ])),
-                if (data['status'] != null)
+              ),
+              child: Row(
+                children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(color: Theme.of(c).colorScheme.surface, borderRadius: BorderRadius.circular(30)),
-                    child: Text(statusName(data['status']), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Theme.of(c).colorScheme.primary,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(
+                            c,
+                          ).colorScheme.primary.withOpacity(.25),
+                          blurRadius: 22,
+                          offset: const Offset(0, 9),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      kindIcon(),
+                      color: Theme.of(c).colorScheme.onPrimary,
+                      size: 34,
+                    ),
                   ),
-              ]),
+                  const SizedBox(width: 17),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          kindCaption(),
+                          style: TextStyle(
+                            color: Theme.of(c).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (data['status'] != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(c).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        statusName(data['status']),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
-            if (balance != null || current != null || debit != null || credit != null)
-              LayoutBuilder(builder: (_, box) {
-                final items = <Widget>[];
-                if (balance != null) items.add(metric(c, 'الرصيد', AccountingCalculations.balanceLabel(balance), Icons.account_balance_rounded, balance > 0 ? Colors.redAccent : _green));
-                if (current != null) items.add(metric(c, 'الرصيد الحالي', money(current), Icons.account_balance_wallet_rounded, _blue));
-                if (debit != null) items.add(metric(c, 'المدين', money(debit), Icons.arrow_downward_rounded, _purple));
-                if (credit != null) items.add(metric(c, 'الدائن', money(credit), Icons.arrow_upward_rounded, _green));
-                if (items.isEmpty) return const SizedBox.shrink();
-                if (box.maxWidth < 700) return Wrap(spacing: 10, runSpacing: 10, children: items.map((x) => SizedBox(width: box.maxWidth, child: x)).toList());
-                return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (int i=0;i<items.length;i++) ...[if(i>0) const SizedBox(width:10), Expanded(child: items[i])]]);
-              }),
+            if (balance != null ||
+                current != null ||
+                debit != null ||
+                credit != null)
+              LayoutBuilder(
+                builder: (_, box) {
+                  final items = <Widget>[];
+                  if (balance != null)
+                    items.add(
+                      metric(
+                        c,
+                        'الرصيد',
+                        AccountingCalculations.balanceLabel(balance),
+                        Icons.account_balance_rounded,
+                        balance > 0 ? Colors.redAccent : _green,
+                      ),
+                    );
+                  if (current != null)
+                    items.add(
+                      metric(
+                        c,
+                        'الرصيد الحالي',
+                        money(current),
+                        Icons.account_balance_wallet_rounded,
+                        _blue,
+                      ),
+                    );
+                  if (debit != null)
+                    items.add(
+                      metric(
+                        c,
+                        'المدين',
+                        money(debit),
+                        Icons.arrow_downward_rounded,
+                        _purple,
+                      ),
+                    );
+                  if (credit != null)
+                    items.add(
+                      metric(
+                        c,
+                        'الدائن',
+                        money(credit),
+                        Icons.arrow_upward_rounded,
+                        _green,
+                      ),
+                    );
+                  if (items.isEmpty) return const SizedBox.shrink();
+                  if (box.maxWidth < 700)
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: items
+                          .map((x) => SizedBox(width: box.maxWidth, child: x))
+                          .toList(),
+                    );
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (int i = 0; i < items.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 10),
+                        Expanded(child: items[i]),
+                      ],
+                    ],
+                  );
+                },
+              ),
             const SizedBox(height: 16),
             section(c, 'البيانات الأساسية', Icons.badge_rounded, basic),
-            section(c, 'الأرصدة والاستحقاقات', Icons.account_balance_rounded, accounting),
+            section(
+              c,
+              'الأرصدة والاستحقاقات',
+              Icons.account_balance_rounded,
+              accounting,
+            ),
             section(c, 'معلومات السجل', Icons.info_outline_rounded, meta),
             paymentMethodMovements(c),
             Container(
@@ -1682,17 +2426,43 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
               decoration: BoxDecoration(
                 color: Theme.of(c).colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Theme.of(c).colorScheme.outlineVariant.withOpacity(.35)),
+                border: Border.all(
+                  color: Theme.of(
+                    c,
+                  ).colorScheme.outlineVariant.withOpacity(.35),
+                ),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(width: 40, height: 40, decoration: BoxDecoration(color: Theme.of(c).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(13)), child: Icon(Icons.timeline_rounded, color: Theme.of(c).colorScheme.secondary)),
-                  const SizedBox(width: 12),
-                  const Text('السجل الزمني', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                ]),
-                const SizedBox(height: 16),
-                historyView(c),
-              ]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(c).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(
+                          Icons.timeline_rounded,
+                          color: Theme.of(c).colorScheme.secondary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'السجل الزمني',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  historyView(c),
+                ],
+              ),
             ),
           ],
         ),
@@ -1700,36 +2470,146 @@ class _RecordDetailsState extends State<RecordDetailsPage> {
     );
   }
 
-  String _historyTitle(Map<String, Object?> x) => '${x['description'] ?? x['type'] ?? x['title'] ?? 'حركة'}';
-  String _historySub(Map<String, Object?> x) => '${x['date'] ?? x['created_at'] ?? '-'} • ${x['notes'] ?? x['memo'] ?? x['status'] ?? ''}';
+  String _historyTitle(Map<String, Object?> x) =>
+      '${x['description'] ?? x['type'] ?? x['title'] ?? 'حركة'}';
+  String _historyDate(Object? raw) {
+    final text = '${raw ?? ''}';
+    final d = DateTime.tryParse(text);
+    if (d == null) return text.isEmpty ? '-' : text;
+    return text.length > 10
+        ? DateFormat('yyyy/MM/dd HH:mm').format(d)
+        : DateFormat('yyyy/MM/dd').format(d);
+  }
+
+  bool get _hasRunningBalance =>
+      const ['beneficiary', 'worker', 'partner'].contains(widget.kind);
+
+  String _historySub(Map<String, Object?> x) {
+    final note = '${x['notes'] ?? x['memo'] ?? x['status'] ?? ''}'.trim();
+    final rawDate = x['date'] ?? x['created_at'];
+    final parts = <String>[
+      if (rawDate != null && '$rawDate'.isNotEmpty) _historyDate(rawDate),
+      if (note.isNotEmpty) note,
+      if (_hasRunningBalance && x['balance'] is num)
+        'الرصيد بعدها: ${balanceText(x['balance'])}',
+    ];
+    return parts.join(' • ');
+  }
+
   String _historyAmount(Map<String, Object?> x) {
-    final v = x['amount'] ?? x['debit'] ?? x['credit'];
-    return v == null ? '' : money(v);
+    // عامل/شريك: مبلغ موقّع (+ يزيد المستحق له، − ينقصه).
+    final signed = x['signed_amount'];
+    if (signed is num) {
+      return '${signed >= 0 ? '+' : '−'} ${money(signed.abs())}';
+    }
+    // كشف المستفيد: مدين يزيد ما عليه، دائن ينقصه.
+    if (x.containsKey('debit') && x.containsKey('credit') && x.containsKey('balance')) {
+      final d = (x['debit'] as num?)?.round() ?? 0;
+      final cr = (x['credit'] as num?)?.round() ?? 0;
+      if (d > 0) return '+ ${money(d)}';
+      if (cr > 0) return '− ${money(cr)}';
+      return money(0);
+    }
+    if (x['amount'] != null) return money(x['amount']);
+    final d = (x['debit'] as num?)?.round();
+    final cr = (x['credit'] as num?)?.round();
+    if (d == null && cr == null) return '';
+    return money((d ?? 0) > 0 ? d : (cr ?? 0));
   }
 }
 
 class _TimelineItem extends StatelessWidget {
   final bool first, last;
   final String title, subtitle, amount;
-  const _TimelineItem({required this.first, required this.last, required this.title, required this.subtitle, required this.amount});
+  const _TimelineItem({
+    required this.first,
+    required this.last,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+  });
   @override
   Widget build(BuildContext c) => IntrinsicHeight(
-    child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SizedBox(width: 30, child: Column(children: [
-        if (!first) Expanded(child: Container(width: 2, color: Theme.of(c).colorScheme.outlineVariant)),
-        Container(width: 12, height: 12, decoration: BoxDecoration(color: Theme.of(c).colorScheme.primary, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Theme.of(c).colorScheme.primary.withOpacity(.25), blurRadius: 8)])),
-        if (!last) Expanded(child: Container(width: 2, color: Theme.of(c).colorScheme.outlineVariant)),
-      ])),
-      const SizedBox(width: 8),
-      Expanded(child: Container(
-        margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Theme.of(c).colorScheme.surfaceContainerHighest.withOpacity(.38), borderRadius: BorderRadius.circular(17)),
-        child: Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(subtitle, style: TextStyle(fontSize: 12, color: Theme.of(c).colorScheme.onSurfaceVariant))])),
-          if (amount.isNotEmpty) Text(amount, style: const TextStyle(fontWeight: FontWeight.w900)),
-        ]),
-      )),
-    ],
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 30,
+          child: Column(
+            children: [
+              if (!first)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    color: Theme.of(c).colorScheme.outlineVariant,
+                  ),
+                ),
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Theme.of(c).colorScheme.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(c).colorScheme.primary.withOpacity(.25),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+              if (!last)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    color: Theme.of(c).colorScheme.outlineVariant,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                c,
+              ).colorScheme.surfaceContainerHighest.withOpacity(.38),
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(c).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (amount.isNotEmpty)
+                  Text(
+                    amount,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
@@ -1752,14 +2632,31 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
   final q = TextEditingController();
   List<Map<String, Object?>> rows = [];
   bool loading = true;
+  Timer? _debounce;
+  int _seq = 0;
   Future<void> load() async {
+    // رقم تسلسلي: نتيجة استعلام أقدم لا تكتب فوق نتيجة أحدث.
+    final seq = ++_seq;
     setState(() => loading = true);
     try {
       final x = await widget.r.beneficiaries(q.text.trim());
-      if (mounted) setState(() => rows = x);
+      if (mounted && seq == _seq) setState(() => rows = x);
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted && seq == _seq) setState(() => loading = false);
     }
+  }
+
+  /// تأخير البحث حتى يتوقف المستخدم عن الكتابة بدل استعلام لكل حرف.
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), load);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    q.dispose();
+    super.dispose();
   }
 
   @override
@@ -1830,17 +2727,21 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.createBeneficiary(
-        name: n.text,
-        phone: p.text,
-        jerba: j.text,
-        address: a.text,
-        location: l.text,
-        needy: needy,
-        opening: int.tryParse(o.text) ?? 0,
-        carried: int.tryParse(c.text) ?? 0,
-        userId: widget.userId,
-      ))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.createBeneficiary(
+          name: n.text,
+          phone: p.text,
+          jerba: j.text,
+          address: a.text,
+          location: l.text,
+          needy: needy,
+          opening: int.tryParse(o.text) ?? 0,
+          carried: int.tryParse(c.text) ?? 0,
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
@@ -1850,8 +2751,10 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
         p = TextEditingController(text: '${x['phone'] ?? ''}'),
         j = TextEditingController(text: '${x['jerba_number'] ?? ''}'),
         a = TextEditingController(text: '${x['address'] ?? ''}'),
+        l = TextEditingController(text: '${x['location'] ?? ''}'),
         o = TextEditingController(text: '${x['opening_balance'] ?? 0}'),
         c = TextEditingController(text: '${x['carried_balance'] ?? 0}');
+    bool needy = (x['is_needy'] as num?)?.toInt() == 1;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => FormDialog(
@@ -1874,6 +2777,10 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
             decoration: const InputDecoration(labelText: 'العنوان'),
           ),
           TextField(
+            controller: l,
+            decoration: const InputDecoration(labelText: 'الموقع'),
+          ),
+          TextField(
             controller: o,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'الرصيد الافتتاحي'),
@@ -1883,24 +2790,43 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'الرصيد المرحل'),
           ),
+          StatefulBuilder(
+            builder: (c, s) => CheckboxListTile(
+              value: needy,
+              onChanged: (v) => s(() => needy = v ?? false),
+              title: const Text('مستفيد من فئة المحتاجين'),
+            ),
+          ),
         ],
         onSave: () => Navigator.pop(context, n.text.trim().isNotEmpty),
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.updateBeneficiary(x['id'] as int, {
-        'name': n.text.trim(),
-        'phone': p.text,
-        'jerba_number': j.text,
-        'address': a.text,
-        'opening_balance': int.tryParse(o.text) ?? 0,
-        'carried_balance': int.tryParse(c.text) ?? 0,
-      }, widget.userId))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.updateBeneficiary(x['id'] as int, {
+          'name': n.text.trim(),
+          'phone': p.text,
+          'jerba_number': j.text,
+          'address': a.text,
+          'location': l.text,
+          'is_needy': needy ? 1 : 0,
+          'opening_balance': int.tryParse(o.text) ?? 0,
+          'carried_balance': int.tryParse(c.text) ?? 0,
+        }, widget.userId),
+      ))
+        return;
       await load();
     }
   }
 
   Future<void> remove(Map<String, Object?> x) async {
+    if (!widget.manager) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('حذف السجلات متاح للمدير فقط')),
+      );
+      return;
+    }
     final r = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -1919,7 +2845,11 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.deleteBeneficiary(x['id'] as int, widget.userId, r.text))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.deleteBeneficiary(x['id'] as int, widget.userId, r.text),
+      ))
+        return;
       await load();
     }
   }
@@ -1945,7 +2875,11 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
     title: 'المستفيدون',
     subtitle: 'بحث سريع وإدارة البيانات والأرصدة وكشف الحساب',
     actions: [
-      OutlinedButton.icon(onPressed: () => ReportService(widget.r).printPdf('beneficiary_list'), icon: const Icon(Icons.picture_as_pdf_rounded), label: const Text('تقرير المستفيدين')),
+      OutlinedButton.icon(
+        onPressed: () => ReportService(widget.r).printPdf('beneficiary_list'),
+        icon: const Icon(Icons.picture_as_pdf_rounded),
+        label: const Text('تقرير المستفيدين'),
+      ),
       FilledButton.icon(
         onPressed: add,
         icon: const Icon(Icons.person_add),
@@ -1956,7 +2890,7 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
       children: [
         TextField(
           controller: q,
-          onChanged: (_) => load(),
+          onChanged: _onSearchChanged,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.search),
             labelText: 'بحث بالاسم أو الهاتف أو رقم الجربة أو الموقع',
@@ -1968,13 +2902,139 @@ class _BeneficiariesState extends State<BeneficiariesPage> {
         Expanded(
           child: rows.isEmpty && !loading
               ? const EmptyView('لا توجد بيانات مطابقة')
-              : LayoutBuilder(builder: (_, box) {
-                  final cols=box.maxWidth>=1100?3:box.maxWidth>=720?2:1; final gap=12.0; final w=(box.maxWidth-gap*(cols-1))/cols;
-                  return SingleChildScrollView(child:Wrap(spacing:gap,runSpacing:gap,children:rows.map((x){
-                    final b=(x['balance'] as num?)?.round()??0;
-                    return SizedBox(width:w,child:InkWell(borderRadius:BorderRadius.circular(24),onTap:()=>details(x),onLongPress:()=>showModalBottomSheet(context:context,showDragHandle:true,builder:(bc)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('تعديل معلومات المستخدم'),onTap:(){Navigator.pop(bc);edit(x);}),if(widget.manager)ListTile(leading:const Icon(Icons.delete_outline,color:Colors.red),title:const Text('حذف'),onTap:(){Navigator.pop(bc);remove(x);})]))),child:Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[CircleAvatar(child:const Icon(Icons.agriculture_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(x);if(v=='delete'&&widget.manager)remove(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),const SizedBox(height:10),Text('${x['phone']??'بدون هاتف'} • ${x['jerba_number']??'بدون رقم جربة'}',style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:10),Text(AccountingCalculations.balanceLabel(b),style:TextStyle(fontWeight:FontWeight.w900,color:b>0?Colors.red:_green)),const SizedBox(height:10),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:()=>details(x),icon:const Icon(Icons.open_in_new),label:const Text('التفاصيل'))))]))))));
-                  }).toList()));
-                }),
+              : LayoutBuilder(
+                  builder: (_, box) {
+                    final cols = box.maxWidth >= 1100
+                        ? 3
+                        : box.maxWidth >= 720
+                        ? 2
+                        : 1;
+                    final gap = 12.0;
+                    final w = (box.maxWidth - gap * (cols - 1)) / cols;
+                    return SingleChildScrollView(
+                      child: Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: rows.map((x) {
+                          final b = (x['balance'] as num?)?.round() ?? 0;
+                          return SizedBox(
+                            width: w,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(24),
+                              onTap: () => details(x),
+                              onLongPress: () => showModalBottomSheet(
+                                context: context,
+                                showDragHandle: true,
+                                builder: (bc) => SafeArea(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.edit_outlined,
+                                        ),
+                                        title: const Text(
+                                          'تعديل بيانات المستفيد',
+                                        ),
+                                        onTap: () {
+                                          Navigator.pop(bc);
+                                          edit(x);
+                                        },
+                                      ),
+                                      if (widget.manager)
+                                        ListTile(
+                                          leading: const Icon(
+                                            Icons.delete_outline,
+                                            color: Colors.red,
+                                          ),
+                                          title: const Text('حذف'),
+                                          onTap: () {
+                                            Navigator.pop(bc);
+                                            remove(x);
+                                          },
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              child: Card(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const CircleAvatar(
+                                            child: Icon(
+                                              Icons.agriculture_rounded,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              '${x['name']}',
+                                              style: const TextStyle(
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                          PopupMenuButton<String>(
+                                            onSelected: (v) {
+                                              if (v == 'edit') edit(x);
+                                              if (v == 'delete' &&
+                                                  widget.manager) {
+                                                remove(x);
+                                              }
+                                            },
+                                            itemBuilder: (_) => [
+  const PopupMenuItem(value: 'edit', child: Text('تعديل بيانات المستفيد')),
+  if (widget.manager)
+    const PopupMenuItem(value: 'delete', child: Text('حذف')),
+],
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        '${x['phone'] ?? 'بدون هاتف'} • ${x['jerba_number'] ?? 'بدون رقم جربة'}',
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            c,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        AccountingCalculations.balanceLabel(b),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          color: b > 0 ? Colors.red : _green,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => details(x),
+                                          icon: const Icon(Icons.open_in_new),
+                                          label: const Text('التفاصيل'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     ),
@@ -1999,7 +3059,10 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       sessions = [],
       history = [];
   int? bid, workerId, partnerId, pumpId, queueId, bookingId, sessionId;
-  String partyType = 'beneficiary', type = 'diesel', queueType = 'circular', search = '';
+  String partyType = 'beneficiary',
+      type = 'diesel',
+      queueType = 'circular',
+      search = '';
   DateTime start = AppClock.now(),
       end = AppClock.now().add(const Duration(hours: 1));
   final paid = TextEditingController(text: '0'),
@@ -2010,9 +3073,13 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       saved = false,
       useSession = false;
   double beneficiaryDiesel = 0;
+  // رصيد صاحب الحساب الحالي (مستفيد: الموجب عليه، عامل/شريك: الموجب له).
+  int partyBalance = 0;
   Map<String, String> settings = {};
+
   /// إعداد «اشتراط تجاوز المدير»: مفعّل = المدير وحده يتجاوز مدة الانتظار.
-  bool get overrideManagerOnly => (settings['manager_override_required'] ?? 'true') == 'true';
+  bool get overrideManagerOnly =>
+      (settings['manager_override_required'] ?? 'true') == 'true';
   List<Map<String, Object?>> methods = [];
   int? payMethod;
   @override
@@ -2034,8 +3101,15 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     if (mounted)
       setState(() {
         methods = pm;
-        final cashM = pm.where((x) => x['type'] == 'cash').toList();
-        payMethod = (cashM.isNotEmpty ? cashM.first : (pm.isNotEmpty ? pm.first : null))?['id'] as int?;
+        // «تحديث» لا يكتب فوق اختيار المستخدم: الافتراضي فقط إن لم يوجد اختيار صالح.
+        if (payMethod == null || !pm.any((x) => x['id'] == payMethod)) {
+          final cashM = pm.where((x) => x['type'] == 'cash').toList();
+          payMethod =
+              (cashM.isNotEmpty
+                      ? cashM.first
+                      : (pm.isNotEmpty ? pm.first : null))?['id']
+                  as int?;
+        }
         beneficiaries = b;
         workers = w;
         partners = pt;
@@ -2045,14 +3119,45 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
         sessions = ss;
         settings = st;
         queueType = st['queue_type'] ?? 'circular';
-        if (b.isNotEmpty) bid = b.first['id'] as int;
+        if (partyType == 'beneficiary' &&
+            b.isNotEmpty &&
+            !b.any((x) => x['id'] == bid)) {
+          bid = b.first['id'] as int;
+        }
         final configured = int.tryParse(st['selected_pump_id'] ?? '');
         final chosen = p.where((x) => x['id'] == configured).toList();
         if (chosen.isNotEmpty) pumpId = chosen.first['id'] as int;
         type = st['system_type'] ?? 'diesel';
+        _dropStaleLinks();
         loading = false;
       });
-    if (bid != null) await selectBeneficiary(bid!);
+    await _reloadParty();
+  }
+
+  /// يعيد تحميل بيانات صاحب الحساب المختار (سجل، ديزل، رصيد) دون تغيير اختياره.
+  Future<void> _reloadParty() async {
+    if (partyType == 'beneficiary') {
+      if (bid == null && beneficiaries.isNotEmpty) {
+        bid = beneficiaries.first['id'] as int;
+      }
+      if (bid != null) {
+        await selectBeneficiary(bid!);
+        return;
+      }
+    }
+    await _loadPartyBalance();
+  }
+
+  Future<void> _loadPartyBalance() async {
+    var v = 0;
+    if (partyType == 'beneficiary' && bid != null) {
+      v = (await widget.r.accounting.beneficiaryBalance(bid!))['balance'] ?? 0;
+    } else if (partyType == 'worker' && workerId != null) {
+      v = (await widget.r.accounting.workerBalance(workerId!))['balance'] ?? 0;
+    } else if (partyType == 'partner' && partnerId != null) {
+      v = (await widget.r.accounting.partnerBalance(partnerId!))['balance'] ?? 0;
+    }
+    if (mounted) setState(() => partyBalance = v);
   }
 
   Future<void> selectBeneficiary(int id) async {
@@ -2061,18 +3166,72 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       "SELECT COALESCE(b.opening_diesel_liters, 0)+COALESCE(b.carried_diesel_liters,0)+COALESCE((SELECT SUM(liters) FROM diesel_movements WHERE beneficiary_id=? AND kind IN ('delivery','advance')),0)-COALESCE((SELECT SUM(liters) FROM diesel_movements WHERE beneficiary_id=? AND kind='consumption'),0) stock FROM beneficiaries b WHERE b.id=?",
       args: [id, id, id],
     );
+    final bal = await widget.r.accounting.beneficiaryBalance(id);
     if (!mounted) return;
     setState(() {
       bid = id;
+      partyBalance = bal['balance'] ?? 0;
       history = h;
       beneficiaryDiesel = d.isEmpty
           ? 0
           : (d.first['stock'] as num?)?.toDouble() ?? 0;
+      _dropStaleLinks();
     });
   }
 
+  // ---- الدور/الحجز/الجلسة: تخص المستفيد المختار فقط ----
+  bool get canLink => partyType == 'beneficiary' && bid != null;
+  static const _openBookingStatuses = ['scheduled', 'accepted', 'notified'];
+  List<Map<String, Object?>> get linkQueue => !canLink
+      ? const []
+      : queue.where((x) => x['beneficiary_id'] == bid).toList();
+  List<Map<String, Object?>> get linkBookings => !canLink
+      ? const []
+      : bookings
+            .where(
+              (x) =>
+                  x['beneficiary_id'] == bid &&
+                  _openBookingStatuses.contains('${x['status']}'),
+            )
+            .toList();
+  List<Map<String, Object?>> get linkSessions => !canLink
+      ? const []
+      : sessions
+            .where((x) => x['beneficiary_id'] == bid && x['status'] == 'running')
+            .toList();
+
+  /// يصفّر أي رابط (دور/حجز/جلسة) لم يعد ضمن القوائم المتاحة للطرف الحالي،
+  /// فلا يبقى معرّف مختار خارج عناصر القائمة المنسدلة ولا يُرسَل لمستفيد آخر.
+  void _dropStaleLinks() {
+    if (queueId != null && !linkQueue.any((x) => x['id'] == queueId))
+      queueId = null;
+    if (bookingId != null && !linkBookings.any((x) => x['id'] == bookingId))
+      bookingId = null;
+    if (sessionId != null && !linkSessions.any((x) => x['id'] == sessionId))
+      sessionId = null;
+    if (sessionId == null && !canLink) useSession = false;
+  }
+
+  /// إعادة تحميل الأدوار والحجوزات والجلسات والسجل بعد الحفظ كي لا تبقى عناصر مستهلكة.
+  Future<void> _refreshAfterSave() async {
+    final q = await widget.r.queue(),
+        bk = await widget.r.bookings(),
+        ss = await widget.r.sessions();
+    if (!mounted) return;
+    setState(() {
+      queue = q;
+      bookings = bk;
+      sessions = ss;
+      _dropStaleLinks();
+    });
+    await _reloadParty();
+  }
+
   int get minutes => end.difference(start).inMinutes;
-  int get cloudMin => cloudPeriods.fold<int>(0, (sum, p) => sum + p['end']!.difference(p['start']!).inMinutes);
+  int get cloudMin => cloudPeriods.fold<int>(
+    0,
+    (sum, p) => sum + p['end']!.difference(p['start']!).inMinutes,
+  );
   int get waterRate =>
       int.tryParse(settings['diesel_hourly_water_rate'] ?? '0') ?? 0;
   double get liters =>
@@ -2082,6 +3241,13 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
   int get solarRate => int.tryParse(settings['solar_hourly_rate'] ?? '0') ?? 0;
   int get thirdRate =>
       int.tryParse(settings['third_type_hourly_rate'] ?? '0') ?? 0;
+  String _balLabel(int v) => partyType == 'beneficiary'
+      ? AccountingCalculations.balanceLabel(v)
+      : AccountingCalculations.partyDueLabel(v);
+
+  /// هل رصيد ما بعد العملية في غير صالح المحطة/الطرف (مدين للمحطة)؟
+  bool _balanceOwed(int v) => partyType == 'beneficiary' ? v > 0 : v < 0;
+
   Map<String, num> preview() {
     if (minutes <= 0)
       return {
@@ -2090,7 +3256,8 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
         'الديزل': 0,
         'القابل للمحاسبة': 0,
         'المدفوع': 0,
-        'حالة الرصيد': 0,
+        'الرصيد الحالي': partyBalance,
+        'حالة الرصيد': partyBalance,
       };
     final c = type == 'diesel'
         ? AccountingCalculations.diesel(
@@ -2125,18 +3292,46 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
             rounding: settings['rounding'] ?? 'nearest',
             partialHour: settings['partial_hour'] != 'false',
           );
-    final paidValue = int.tryParse(paid.text) ?? 0;
+    final isBeneficiary = partyType == 'beneficiary';
+    // نفس سياسة recordIrrigation: يُحمَّل ثمن العجز فقط ما لم يكن تسليم الديزل رصيدًا ماليًا.
+    var diesel = c.dieselAmount;
+    if (isBeneficiary &&
+        type == 'diesel' &&
+        c.dieselLiters > 0 &&
+        (settings['diesel_delivery_financial_credit'] ?? '').toLowerCase() !=
+            'true') {
+      final shortage = c.dieselLiters > beneficiaryDiesel
+          ? c.dieselLiters - beneficiaryDiesel
+          : 0.0;
+      diesel = AccountingCalculations.roundAmount(
+        shortage * dieselPrice,
+        settings['rounding'] ?? 'nearest',
+      );
+    }
+    final total = c.waterAmount + diesel;
+    // الدفعة المرافقة للمستفيد فقط (الخدمة ترفضها لغيره).
+    final paidValue = isBeneficiary ? (int.tryParse(paid.text) ?? 0) : 0;
+    // المستفيد: رصيده + المستحق − المدفوع (الموجب عليه).
+    // العامل/الشريك: رصيده − قيمة السقاية (الموجب له).
+    final after = isBeneficiary
+        ? partyBalance + total - paidValue
+        : partyBalance - total;
     return {
-      'الإجمالي': c.totalAmount,
+      'الإجمالي': total,
       'المياه': c.waterAmount,
-      'الديزل': c.dieselAmount,
+      'الديزل': diesel,
       'القابل للمحاسبة': c.chargeableMinutes,
       'المدفوع': paidValue,
-      'حالة الرصيد': c.totalAmount - paidValue,
+      'الرصيد الحالي': partyBalance,
+      'حالة الرصيد': after,
     };
   }
 
-  bool _cloudPeriodValid(DateTime cloudStart, DateTime cloudEnd, {int? editingIndex}) {
+  bool _cloudPeriodValid(
+    DateTime cloudStart,
+    DateTime cloudEnd, {
+    int? editingIndex,
+  }) {
     if (!cloudEnd.isAfter(cloudStart)) {
       msg('وقت نهاية الغيم يجب أن يكون بعد وقت بدايته');
       return false;
@@ -2154,7 +3349,14 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
         return false;
       }
     }
-    final total = cloudMin - (editingIndex == null ? 0 : cloudPeriods[editingIndex]['end']!.difference(cloudPeriods[editingIndex]['start']!).inMinutes) + cloudEnd.difference(cloudStart).inMinutes;
+    final total =
+        cloudMin -
+        (editingIndex == null
+            ? 0
+            : cloudPeriods[editingIndex]['end']!
+                  .difference(cloudPeriods[editingIndex]['start']!)
+                  .inMinutes) +
+        cloudEnd.difference(cloudStart).inMinutes;
     if (total > minutes) {
       msg('إجمالي خصم الغيم لا يمكن أن يتجاوز مدة السقاية');
       return false;
@@ -2166,15 +3368,30 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     if (type != 'solar') return;
     final existing = editingIndex == null ? null : cloudPeriods[editingIndex];
     final initialStart = existing?['start'] ?? start;
-    final initialEnd = existing?['end'] ?? start.add(const Duration(minutes: 15));
-    final ts = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(initialStart), helpText: 'بداية الغيم');
+    final initialEnd =
+        existing?['end'] ?? start.add(const Duration(minutes: 15));
+    final ts = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialStart),
+      helpText: 'بداية الغيم',
+    );
     if (ts == null) return;
-    final te = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(initialEnd), helpText: 'نهاية الغيم');
+    final te = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialEnd),
+      helpText: 'نهاية الغيم',
+    );
     if (te == null) return;
     final startMinutes = ts.hour * 60 + ts.minute;
     final endMinutes = te.hour * 60 + te.minute;
     final cs = DateTime(start.year, start.month, start.day, ts.hour, ts.minute);
-    final ce = DateTime(start.year, start.month, start.day + (endMinutes <= startMinutes ? 1 : 0), te.hour, te.minute);
+    final ce = DateTime(
+      start.year,
+      start.month,
+      start.day + (endMinutes <= startMinutes ? 1 : 0),
+      te.hour,
+      te.minute,
+    );
     if (!_cloudPeriodValid(cs, ce, editingIndex: editingIndex)) return;
     setState(() {
       final item = {'start': cs, 'end': ce};
@@ -2187,7 +3404,8 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     });
   }
 
-  String _hm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  String _hm(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   Future<void> pickDate(bool isStart) async {
     final d = await showDatePicker(
@@ -2200,11 +3418,24 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     if (d == null) return;
     final tStart = TimeOfDay.fromDateTime(start);
     final tEnd = TimeOfDay.fromDateTime(end);
-    final startDt = DateTime(d.year, d.month, d.day, tStart.hour, tStart.minute);
+    final startDt = DateTime(
+      d.year,
+      d.month,
+      d.day,
+      tStart.hour,
+      tStart.minute,
+    );
     // التاريخ الظاهر واحد للسقاية، لكن وقت النهاية قد يقع في اليوم التالي.
     // نثبت ذلك في DateTime بدل محاولة استنتاجه لاحقاً من النص المعروض.
-    final crosses = (tEnd.hour * 60 + tEnd.minute) <= (tStart.hour * 60 + tStart.minute);
-    final endDt = DateTime(d.year, d.month, d.day + (crosses ? 1 : 0), tEnd.hour, tEnd.minute);
+    final crosses =
+        (tEnd.hour * 60 + tEnd.minute) <= (tStart.hour * 60 + tStart.minute);
+    final endDt = DateTime(
+      d.year,
+      d.month,
+      d.day + (crosses ? 1 : 0),
+      tEnd.hour,
+      tEnd.minute,
+    );
     setState(() {
       start = startDt;
       end = endDt;
@@ -2221,24 +3452,47 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     if (t == null) return;
     setState(() {
       if (isStart) {
-        final nextStart = DateTime(start.year, start.month, start.day, t.hour, t.minute);
+        final nextStart = DateTime(
+          start.year,
+          start.month,
+          start.day,
+          t.hour,
+          t.minute,
+        );
         final endMinutes = end.hour * 60 + end.minute;
         final startMinutes = t.hour * 60 + t.minute;
         // إذا أصبح وقت النهاية مساوياً أو أسبق من البداية، فهو تلقائياً في اليوم التالي.
-        final nextEnd = DateTime(start.year, start.month, start.day + (endMinutes <= startMinutes ? 1 : 0), end.hour, end.minute);
+        final nextEnd = DateTime(
+          start.year,
+          start.month,
+          start.day + (endMinutes <= startMinutes ? 1 : 0),
+          end.hour,
+          end.minute,
+        );
         start = nextStart;
         end = nextEnd;
       } else {
         final startMinutes = start.hour * 60 + start.minute;
         final endMinutes = t.hour * 60 + t.minute;
-        end = DateTime(start.year, start.month, start.day + (endMinutes <= startMinutes ? 1 : 0), t.hour, t.minute);
+        end = DateTime(
+          start.year,
+          start.month,
+          start.day + (endMinutes <= startMinutes ? 1 : 0),
+          t.hour,
+          t.minute,
+        );
       }
-      cloudPeriods.removeWhere((p) => p['start']!.isBefore(start) || p['end']!.isAfter(end));
+      cloudPeriods.removeWhere(
+        (p) => p['start']!.isBefore(start) || p['end']!.isAfter(end),
+      );
     });
   }
 
   Future<void> save() async {
-    if ((partyType == 'beneficiary' && bid == null) || (partyType == 'worker' && workerId == null) || (partyType == 'partner' && partnerId == null) || pumpId == null) {
+    if ((partyType == 'beneficiary' && bid == null) ||
+        (partyType == 'worker' && workerId == null) ||
+        (partyType == 'partner' && partnerId == null) ||
+        pumpId == null) {
       msg('يجب اختيار صاحب الحساب والمضخة');
       return;
     }
@@ -2250,6 +3504,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       msg('اختر جلسة سقي عند تفعيل استخدام وقت الجلسة');
       return;
     }
+    _dropStaleLinks();
     if (managerOverride && overrideManagerOnly && !widget.manager) {
       msg('تجاوز مدة الانتظار متاح للمدير فقط');
       return;
@@ -2260,8 +3515,14 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     }
     setState(() => loading = true);
     try {
+      // المحطة = محطة المضخة المختارة (لا رقم ثابت).
+      final pumpRow = pumps.where((x) => x['id'] == pumpId).toList();
+      final stationId =
+          (pumpRow.isEmpty ? null : (pumpRow.first['station_id'] as num?))
+              ?.toInt() ??
+          await widget.r.accounting.currentStationId();
       await widget.r.accounting.recordIrrigation(
-        stationId: 1,
+        stationId: stationId,
         pumpId: pumpId!,
         beneficiaryId: partyType == 'beneficiary' ? bid : null,
         workerId: partyType == 'worker' ? workerId : null,
@@ -2276,17 +3537,27 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
         solarRate: solarRate,
         thirdRate: thirdRate,
         cloudMinutes: cloudMin,
-        cloudPeriods: cloudPeriods.map((p) => {'start': p['start']!.toIso8601String(), 'end': p['end']!.toIso8601String()}).toList(),
-        paidAmount: int.tryParse(paid.text) ?? 0,
+        cloudPeriods: cloudPeriods
+            .map(
+              (p) => {
+                'start': p['start']!.toIso8601String(),
+                'end': p['end']!.toIso8601String(),
+              },
+            )
+            .toList(),
+        paidAmount: partyType == 'beneficiary'
+            ? (int.tryParse(paid.text) ?? 0)
+            : 0,
         paymentMethodId: payMethod,
-        bookingId: bookingId,
-        queueId: queueId,
-        sessionId: sessionId,
+        bookingId: canLink ? bookingId : null,
+        queueId: canLink ? queueId : null,
+        sessionId: canLink ? sessionId : null,
         overrideWaitingPeriod: managerOverride,
         overrideReason: reason.text,
       );
       if (mounted) setState(() => saved = true);
       msg('تم حفظ السقاية والقيد المحاسبي بنجاح');
+      await _refreshAfterSave();
     } catch (e) {
       msg(friendlyError(e));
     } finally {
@@ -2294,7 +3565,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     }
   }
 
-  void newOperation() {
+  Future<void> newOperation() async {
     setState(() {
       saved = false;
       start = AppClock.now();
@@ -2307,6 +3578,8 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
       bookingId = null;
       sessionId = null;
     });
+    // أعد تحميل رصيد الديزل والسجل والأدوار والجلسات والرصيد بدل عرض بيانات ما قبل الحفظ.
+    await load();
   }
 
   void msg(String x) {
@@ -2318,9 +3591,12 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
   Widget build(c) {
     if (loading && beneficiaries.isEmpty) return const LoadingView();
     final p = preview();
+    bool keepSelected(Map<String, Object?> x, int? selected) =>
+        x['id'] == selected;
     final filtered = beneficiaries
         .where(
           (x) =>
+              keepSelected(x, bid) ||
               '${x['name']} ${x['phone'] ?? ''} ${x['jerba_number'] ?? ''} ${x['location'] ?? ''}'
                   .contains(search),
         )
@@ -2328,8 +3604,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
     final selectedHistory = history;
     return PageFrame(
       title: 'سقاية جديدة',
-      subtitle:
-          'عملية سقي كاملة مرتبطة بالدور الحالي والحساب والقيد المحاسبي',
+      subtitle: 'عملية سقي كاملة مرتبطة بالدور الحالي والحساب والقيد المحاسبي',
       actions: [
         OutlinedButton.icon(
           onPressed: load,
@@ -2358,12 +3633,29 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                 DropdownButtonFormField<String>(
                   value: partyType,
                   items: const [
-                    DropdownMenuItem(value: 'beneficiary', child: Text('مستفيد')),
+                    DropdownMenuItem(
+                      value: 'beneficiary',
+                      child: Text('مستفيد'),
+                    ),
                     DropdownMenuItem(value: 'worker', child: Text('عامل')),
                     DropdownMenuItem(value: 'partner', child: Text('شريك')),
                   ],
-                  onChanged: (v) => setState(() { partyType = v!; bid = null; workerId = null; partnerId = null; }),
-                  decoration: const InputDecoration(labelText: 'صاحب حساب السقاية'),
+                  onChanged: (v) {
+                    setState(() {
+                      partyType = v!;
+                      workerId = null;
+                      partnerId = null;
+                      history = [];
+                      partyBalance = 0;
+                      // الدفعة المرافقة للمستفيد فقط.
+                      paid.text = '0';
+                      _dropStaleLinks();
+                    });
+                    _reloadParty();
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'صاحب حساب السقاية',
+                  ),
                 ),
                 TextField(
                   onChanged: (v) => setState(() => search = v),
@@ -2378,13 +3670,74 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                   fieldSelect<int>(
                     'المستفيد',
                     bid,
-                    filtered.map((x) => DropdownMenuItem(value: x['id'] as int, child: Text('${x['name']} • ${x['jerba_number'] ?? 'بدون رقم جربة'}'))).toList(),
-                    (v) { if (v != null) selectBeneficiary(v); },
+                    filtered
+                        .map(
+                          (x) => DropdownMenuItem(
+                            value: x['id'] as int,
+                            child: Text(
+                              '${x['name']} • ${x['jerba_number'] ?? 'بدون رقم جربة'}',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    (v) {
+                      if (v != null) selectBeneficiary(v);
+                    },
                   ),
                 if (partyType == 'worker')
-                  fieldSelect<int>('العامل', workerId, workers.where((x) => '${x['name']} ${x['phone'] ?? ''}'.contains(search)).map((x) => DropdownMenuItem(value: x['id'] as int, child: Text('${x['name']}'))).toList(), (v) => setState(() => workerId = v)),
+                  fieldSelect<int>(
+                    'العامل',
+                    workerId,
+                    workers
+                        .where(
+                          (x) =>
+                              keepSelected(x, workerId) ||
+                              '${x['name']} ${x['phone'] ?? ''}'.contains(
+                                search,
+                              ),
+                        )
+                        .map(
+                          (x) => DropdownMenuItem(
+                            value: x['id'] as int,
+                            child: Text('${x['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    (v) {
+                      setState(() {
+                        workerId = v;
+                        partyBalance = 0;
+                      });
+                      _loadPartyBalance();
+                    },
+                  ),
                 if (partyType == 'partner')
-                  fieldSelect<int>('الشريك', partnerId, partners.where((x) => '${x['name']} ${x['phone'] ?? ''}'.contains(search)).map((x) => DropdownMenuItem(value: x['id'] as int, child: Text('${x['name']}'))).toList(), (v) => setState(() => partnerId = v)),
+                  fieldSelect<int>(
+                    'الشريك',
+                    partnerId,
+                    partners
+                        .where(
+                          (x) =>
+                              keepSelected(x, partnerId) ||
+                              '${x['name']} ${x['phone'] ?? ''}'.contains(
+                                search,
+                              ),
+                        )
+                        .map(
+                          (x) => DropdownMenuItem(
+                            value: x['id'] as int,
+                            child: Text('${x['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    (v) {
+                      setState(() {
+                        partnerId = v;
+                        partyBalance = 0;
+                      });
+                      _loadPartyBalance();
+                    },
+                  ),
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
@@ -2422,8 +3775,13 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                 DateButton('التاريخ', start, () => pickDate(true)),
                 DateButton('وقت البداية', start, () => pickTime(true)),
                 DateButton('وقت النهاية', end, () => pickTime(false)),
-                if (end.year != start.year || end.month != start.month || end.day != start.day)
-                  const Chip(avatar: Icon(Icons.nights_stay_outlined), label: Text('وقت النهاية في اليوم التالي')),
+                if (end.year != start.year ||
+                    end.month != start.month ||
+                    end.day != start.day)
+                  const Chip(
+                    avatar: Icon(Icons.nights_stay_outlined),
+                    label: Text('وقت النهاية في اليوم التالي'),
+                  ),
                 Chip(
                   label: Text('المدة: $minutes دقيقة'),
                   avatar: const Icon(Icons.timelapse),
@@ -2442,15 +3800,20 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                       final m = p['end']!.difference(p['start']!).inMinutes;
                       return InputChip(
                         avatar: const Icon(Icons.cloud, size: 18),
-                        label: Text('غيم ${i + 1}: ${_hm(p['start']!)} → ${_hm(p['end']!)} • $m دقيقة'),
+                        label: Text(
+                          'غيم ${i + 1}: ${_hm(p['start']!)} → ${_hm(p['end']!)} • $m دقيقة',
+                        ),
                         onPressed: () => addCloudPeriod(editingIndex: i),
-                        onDeleted: () => setState(() => cloudPeriods.removeAt(i)),
+                        onDeleted: () =>
+                            setState(() => cloudPeriods.removeAt(i)),
                       );
                     }),
                   if (cloudPeriods.isNotEmpty)
                     Chip(
                       avatar: const Icon(Icons.remove_circle_outline),
-                      label: Text('خصم الغيم: $cloudMin دقيقة • المحاسبة: ${minutes - cloudMin} دقيقة'),
+                      label: Text(
+                        'خصم الغيم: $cloudMin دقيقة • المحاسبة: ${minutes - cloudMin} دقيقة',
+                      ),
                     ),
                 ],
               ],
@@ -2463,8 +3826,18 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
               spacing: 12,
               runSpacing: 12,
               children: [
+                if (!canLink)
+                  const Chip(
+                    avatar: Icon(Icons.info_outline),
+                    label: Text(
+                      'الربط بالدور والحجز والجلسة متاح عند اختيار مستفيد فقط',
+                    ),
+                  ),
                 Container(
-                  constraints: const BoxConstraints(minWidth: 280, maxWidth: 520),
+                  constraints: const BoxConstraints(
+                    minWidth: 280,
+                    maxWidth: 520,
+                  ),
                   child: fieldSelect<int>(
                     queueType == 'booking' ? 'الدور المحجوز' : 'الدور الحالي',
                     queueType == 'booking' ? bookingId : queueId,
@@ -2474,11 +3847,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                         child: Text('بدون ربط بالدور'),
                       ),
                       if (queueType == 'booking')
-                        for (final x in bookings.where(
-                          (x) =>
-                              (bid == null || x['beneficiary_id'] == bid) &&
-                              ['scheduled', 'accepted', 'notified'].contains('${x['status']}'),
-                        ))
+                        for (final x in linkBookings)
                           DropdownMenuItem(
                             value: x['id'] as int,
                             child: Text(
@@ -2486,9 +3855,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                             ),
                           )
                       else
-                        for (final x in queue.where(
-                          (x) => bid == null || x['beneficiary_id'] == bid,
-                        ))
+                        for (final x in linkQueue)
                           DropdownMenuItem(
                             value: x['id'] as int,
                             child: Text(
@@ -2504,9 +3871,7 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                 ),
                 fieldSelect<int>('جلسة سقي محفوظة', sessionId, [
                   const DropdownMenuItem(value: null, child: Text('بدون جلسة')),
-                  for (final x in sessions.where(
-                    (x) => bid == null || x['beneficiary_id'] == bid,
-                  ))
+                  for (final x in linkSessions)
                     DropdownMenuItem(
                       value: x['id'] as int,
                       child: Text(
@@ -2518,7 +3883,9 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                   width: 220,
                   child: SwitchListTile(
                     value: useSession,
-                    onChanged: (v) => setState(() => useSession = v),
+                    onChanged: canLink
+                        ? (v) => setState(() => useSession = v)
+                        : null,
                     title: const Text('استخدام وقت جلسة السقي'),
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -2543,29 +3910,44 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                 if (type == 'equivalent_hybrid') ...[
                   Metric('سعر النوع الثالث', money(thirdRate), _cyan),
                 ],
-                SizedBox(
-                  width: 230,
-                  child: TextField(
-                    controller: paid,
-                    onChanged: (_) => setState(() {}),
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'المدفوع الآن',
-                      hintText: 'بالريال',
+                if (partyType == 'beneficiary')
+                  SizedBox(
+                    width: 230,
+                    child: TextField(
+                      controller: paid,
+                      onChanged: (_) => setState(() {}),
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'المدفوع الآن',
+                        hintText: 'بالريال',
+                      ),
+                    ),
+                  )
+                else
+                  const Chip(
+                    avatar: Icon(Icons.info_outline),
+                    label: Text(
+                      'الدفعة المرافقة للمستفيد فقط؛ يُسدَّد حساب العامل أو الشريك من شاشة المدفوعات',
                     ),
                   ),
-                ),
-                if ((int.tryParse(paid.text) ?? 0) > 0 && methods.isNotEmpty)
+                if (partyType == 'beneficiary' &&
+                    (int.tryParse(paid.text) ?? 0) > 0 &&
+                    methods.isNotEmpty)
                   SizedBox(
                     width: 230,
                     child: DropdownButtonFormField<int>(
                       value: payMethod,
                       items: [
                         for (final x in methods)
-                          DropdownMenuItem(value: x['id'] as int, child: Text('${x['name']}')),
+                          DropdownMenuItem(
+                            value: x['id'] as int,
+                            child: Text('${x['name']}'),
+                          ),
                       ],
                       onChanged: (v) => setState(() => payMethod = v),
-                      decoration: const InputDecoration(labelText: 'طريقة الدفع'),
+                      decoration: const InputDecoration(
+                        labelText: 'طريقة الدفع',
+                      ),
                     ),
                   ),
                 if (widget.manager || !overrideManagerOnly)
@@ -2609,13 +3991,19 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
                 Metric('قيمة المياه', money(p['المياه']), _blue),
                 Metric('قيمة الديزل', money(p['الديزل']), _purple),
                 Metric('الإجمالي المستحق', money(p['الإجمالي']), _green),
-                Metric('المدفوع', money(p['المدفوع']), _blue),
+                if (partyType == 'beneficiary')
+                  Metric('المدفوع', money(p['المدفوع']), _blue),
                 Metric(
-                  'حالة الرصيد',
-                  AccountingCalculations.balanceLabel(
-                    p['حالة الرصيد']!.round(),
-                  ),
-                  p['حالة الرصيد']! > 0 ? Colors.orange : _green,
+                  'الرصيد الحالي',
+                  _balLabel(p['الرصيد الحالي']!.round()),
+                  _purple,
+                ),
+                Metric(
+                  'حالة الرصيد بعد العملية',
+                  _balLabel(p['حالة الرصيد']!.round()),
+                  _balanceOwed(p['حالة الرصيد']!.round())
+                      ? Colors.orange
+                      : _green,
                 ),
               ],
             ),
@@ -2653,7 +4041,8 @@ class _NewIrrigationState extends State<NewIrrigationPage> {
   ) => SizedBox(
     width: 270,
     child: DropdownButtonFormField<T>(
-      value: value,
+      // Flutter يرمي assertion إن لم تطابق القيمة عنصرًا واحدًا بالضبط.
+      value: items.where((i) => i.value == value).length == 1 ? value : null,
       items: items,
       onChanged: f,
       decoration: InputDecoration(labelText: label, hintText: 'اختر $label'),
@@ -2772,7 +4161,12 @@ class IrrigationsPage extends StatefulWidget {
   final StationRepository r;
   final bool manager;
   final int userId;
-  const IrrigationsPage(this.r, {required this.manager, required this.userId, super.key});
+  const IrrigationsPage(
+    this.r, {
+    required this.manager,
+    required this.userId,
+    super.key,
+  });
   @override
   State<IrrigationsPage> createState() => _IrrigationsState();
 }
@@ -2826,8 +4220,13 @@ class _IrrigationsState extends State<IrrigationsPage> {
     if (reason == null || !mounted) return;
     if (!await runGuarded(
       context,
-      () => widget.r.accounting.cancelIrrigation(x['id'] as int, widget.userId, reason),
-    )) return;
+      () => widget.r.accounting.cancelIrrigation(
+        x['id'] as int,
+        widget.userId,
+        reason,
+      ),
+    ))
+      return;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم إلغاء السقاية وعكس أثرها')),
@@ -2944,33 +4343,57 @@ class _IrrigationsState extends State<IrrigationsPage> {
                           ],
                           rows: [
                             for (final x in filtered)
-                              DataRow(cells: [
-                                DataCell(Text('${x['beneficiary_name'] ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w800))),
-                                DataCell(Text(_timeOf(x['start_datetime']))),
-                                DataCell(Text(_timeOf(x['end_datetime']))),
-                                DataCell(Text('${x['minutes'] ?? 0} دقيقة')),
-                                DataCell(Text(money(x['paid_amount']))),
-                                DataCell(Text(money(x['total_amount']))),
-                                DataCell(Text('${x['cloud_minutes'] ?? 0} دقيقة')),
-                                DataCell(
-                                  Chip(
-                                    avatar: Icon(
-                                      ((x['cloud_minutes'] as num?)?.round() ?? 0) > 0 ? Icons.cloud : Icons.cloud_off,
-                                      size: 16,
-                                    ),
-                                    label: Text(
-                                      ((x['cloud_minutes'] as num?)?.round() ?? 0) > 0 ? 'تم الخصم' : 'لا يوجد خصم',
+                              DataRow(
+                                cells: [
+                                  DataCell(
+                                    Text(
+                                      '${x['beneficiary_name'] ?? '-'}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              DataCell(
-                                  IconButton(
-                                    tooltip: 'إلغاء السقاية',
-                                    onPressed: () => cancelIrrigationRow(x),
-                                    icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                                  DataCell(Text(_timeOf(x['start_datetime']))),
+                                  DataCell(Text(_timeOf(x['end_datetime']))),
+                                  DataCell(Text('${x['minutes'] ?? 0} دقيقة')),
+                                  DataCell(Text(money(x['paid_amount']))),
+                                  DataCell(Text(money(x['total_amount']))),
+                                  DataCell(
+                                    Text('${x['cloud_minutes'] ?? 0} دقيقة'),
                                   ),
-                                ),
-                              ]),
+                                  DataCell(
+                                    Chip(
+                                      avatar: Icon(
+                                        ((x['cloud_minutes'] as num?)
+                                                        ?.round() ??
+                                                    0) >
+                                                0
+                                            ? Icons.cloud
+                                            : Icons.cloud_off,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        ((x['cloud_minutes'] as num?)
+                                                        ?.round() ??
+                                                    0) >
+                                                0
+                                            ? 'تم الخصم'
+                                            : 'لا يوجد خصم',
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    IconButton(
+                                      tooltip: 'إلغاء السقاية',
+                                      onPressed: () => cancelIrrigationRow(x),
+                                      icon: const Icon(
+                                        Icons.cancel_outlined,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                       ),
@@ -3005,12 +4428,20 @@ class _SessionsState extends State<SessionsPage> {
       final b = await widget.r.beneficiaries();
       final st = await widget.r.settings();
       final queueTypeValue = st['queue_type'] ?? 'circular';
-      final queue = queueTypeValue == 'booking' ? <Map<String, Object?>>[] : await widget.r.queue();
-      final bookingsValue = queueTypeValue == 'booking' ? await widget.r.bookings('scheduled') : <Map<String, Object?>>[];
+      final queue = queueTypeValue == 'booking'
+          ? <Map<String, Object?>>[]
+          : await widget.r.queue();
+      final bookingsValue = queueTypeValue == 'booking'
+          ? await widget.r.bookings('scheduled')
+          : <Map<String, Object?>>[];
       final selectedId = int.tryParse(st['selected_pump_id'] ?? '');
       final pumps = selectedId == null
           ? <Map<String, Object?>>[]
-          : await widget.r.db.query('pumps', where: 'id=? AND active=1', whereArgs: [selectedId]);
+          : await widget.r.db.query(
+              'pumps',
+              where: 'id=? AND active=1',
+              whereArgs: [selectedId],
+            );
       if (mounted)
         setState(() {
           rows = a;
@@ -3102,7 +4533,9 @@ class _SessionsState extends State<SessionsPage> {
                     bookId = queueType == 'booking' ? v : null;
                   }),
                   decoration: InputDecoration(
-                    labelText: queueType == 'booking' ? 'الدور المحجوز' : 'الدور الحالي',
+                    labelText: queueType == 'booking'
+                        ? 'الدور المحجوز'
+                        : 'الدور الحالي',
                   ),
                 ),
               ],
@@ -3166,7 +4599,11 @@ class _SessionsState extends State<SessionsPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.postponeSession(id, c.text, userId: widget.userId))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.postponeSession(id, c.text, userId: widget.userId),
+      ))
+        return;
       await load();
     }
   }
@@ -3300,7 +4737,9 @@ class _QueueState extends State<QueueBookingPage> {
     final settings = await widget.r.settings();
     final mode = settings['queue_type'] ?? 'circular';
     final allBeneficiaries = await widget.r.beneficiaries();
-    final queue = mode == 'booking' ? <Map<String, Object?>>[] : await widget.r.queue();
+    final queue = mode == 'booking'
+        ? <Map<String, Object?>>[]
+        : await widget.r.queue();
     final bookings = mode == 'booking'
         ? await widget.r.bookings(status)
         : <Map<String, Object?>>[];
@@ -3401,7 +4840,11 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true && id != null) {
-      if (!await runGuarded(context, () => widget.r.createBooking(id!, n.text, userId: widget.userId))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.createBooking(id!, n.text, userId: widget.userId),
+      ))
+        return;
       await load();
     }
   }
@@ -3421,7 +4864,10 @@ class _QueueState extends State<QueueBookingPage> {
               DropdownButtonFormField<String>(
                 value: st,
                 items: const [
-                  DropdownMenuItem(value: 'scheduled', child: Text('محدد الموعد')),
+                  DropdownMenuItem(
+                    value: 'scheduled',
+                    child: Text('محدد الموعد'),
+                  ),
                   DropdownMenuItem(value: 'accepted', child: Text('مقبول')),
                   DropdownMenuItem(value: 'cancelled', child: Text('ملغى')),
                 ],
@@ -3471,9 +4917,9 @@ class _QueueState extends State<QueueBookingPage> {
     }
     if (st == 'cancelled' && reason.text.trim().isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('سبب الإلغاء مطلوب')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('سبب الإلغاء مطلوب')));
       }
       return;
     }
@@ -3487,17 +4933,27 @@ class _QueueState extends State<QueueBookingPage> {
         start: start,
         end: start?.add(const Duration(hours: 1)),
       ),
-    )) return;
+    ))
+      return;
     await load();
   }
 
   Future<void> cancelBooking(Map<String, Object?> x) async {
-    final reason = await askReason(context, 'إلغاء حجز ${x['beneficiary_name']}');
+    final reason = await askReason(
+      context,
+      'إلغاء حجز ${x['beneficiary_name']}',
+    );
     if (reason == null || !mounted) return;
     if (!await runGuarded(
       context,
-      () => widget.r.reviewBooking(x['id'] as int, status: 'cancelled', reviewer: widget.userId, reason: reason),
-    )) return;
+      () => widget.r.reviewBooking(
+        x['id'] as int,
+        status: 'cancelled',
+        reviewer: widget.userId,
+        reason: reason,
+      ),
+    ))
+      return;
     await load();
   }
 
@@ -3507,12 +4963,25 @@ class _QueueState extends State<QueueBookingPage> {
       context: context,
       builder: (d) => FormDialog(
         title: 'تعديل ملاحظات الحجز',
-        children: [TextField(controller: c, decoration: const InputDecoration(labelText: 'ملاحظات'))],
+        children: [
+          TextField(
+            controller: c,
+            decoration: const InputDecoration(labelText: 'ملاحظات'),
+          ),
+        ],
         onSave: () => Navigator.pop(d, true),
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.updateBookingNotes(x['id'] as int, c.text, userId: widget.userId))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.updateBookingNotes(
+          x['id'] as int,
+          c.text,
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
@@ -3533,7 +5002,11 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.postponeQueue(id, c.text, userId: widget.userId))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.postponeQueue(id, c.text, userId: widget.userId),
+      ))
+        return;
       await load();
     }
   }
@@ -3543,15 +5016,27 @@ class _QueueState extends State<QueueBookingPage> {
       context: context,
       builder: (d) => AlertDialog(
         title: const Text('تمت الخدمة'),
-        content: const Text('تسجيل أن هذا المستفيد خُدم دون سقاية في النظام؟ في الطابور الدائري يعود إلى آخر الدور.'),
+        content: const Text(
+          'تسجيل أن هذا المستفيد خُدم دون سقاية في النظام؟ في الطابور الدائري يعود إلى آخر الدور.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('تأكيد')),
+          TextButton(
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(d, true),
+            child: const Text('تأكيد'),
+          ),
         ],
       ),
     );
     if (ok != true || !mounted) return;
-    if (!await runGuarded(context, () => widget.r.completeQueue(id, userId: widget.userId))) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.completeQueue(id, userId: widget.userId),
+    ))
+      return;
     await load();
   }
 
@@ -3572,7 +5057,11 @@ class _QueueState extends State<QueueBookingPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.serveSpecific(id, widget.userId, c.text))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.serveSpecific(id, widget.userId, c.text),
+      ))
+        return;
       await load();
     }
   }
@@ -3624,7 +5113,9 @@ class _QueueState extends State<QueueBookingPage> {
             title: isBookingMode ? 'الدور الحالي' : 'ترتيب الدور الحالي',
             icon: Icons.format_list_numbered_rounded,
             child: entries.isEmpty
-                ? EmptyView(isBookingMode ? 'لا توجد طلبات في الدور' : 'الدور فارغ')
+                ? EmptyView(
+                    isBookingMode ? 'لا توجد طلبات في الدور' : 'الدور فارغ',
+                  )
                 : Column(
                     children: [
                       for (var i = 0; i < entries.length; i++)
@@ -3632,7 +5123,11 @@ class _QueueState extends State<QueueBookingPage> {
                           clipBehavior: Clip.antiAlias,
                           child: ListTile(
                             leading: CircleAvatar(
-                              child: Text(isBookingMode ? '${i + 1}' : '${entries[i]['position']}'),
+                              child: Text(
+                                isBookingMode
+                                    ? '${i + 1}'
+                                    : '${entries[i]['position']}',
+                              ),
                             ),
                             title: Text('${entries[i]['beneficiary_name']}'),
                             subtitle: Text(
@@ -3649,47 +5144,66 @@ class _QueueState extends State<QueueBookingPage> {
                                     MaterialPageRoute(
                                       builder: (_) => RecordDetailsPage(
                                         widget.r,
-                                        kind: isBookingMode ? 'booking' : 'queue',
+                                        kind: isBookingMode
+                                            ? 'booking'
+                                            : 'queue',
                                         id: entries[i]['id'] as int,
-                                        title: isBookingMode ? 'تفاصيل الدور' : 'تفاصيل الدور',
+                                        title: isBookingMode
+                                            ? 'تفاصيل الدور'
+                                            : 'تفاصيل الدور',
                                       ),
                                     ),
                                   ),
                                   icon: const Icon(Icons.info_outline_rounded),
                                 ),
                                 if (isBookingMode) ...[
-                                  if (!const {'completed', 'cancelled'}.contains('${entries[i]['status']}')) ...[
+                                  if (!const {
+                                    'completed',
+                                    'cancelled',
+                                  }.contains('${entries[i]['status']}')) ...[
                                     IconButton(
                                       tooltip: 'إدارة الدور',
                                       onPressed: () => review(entries[i]),
-                                      icon: const Icon(Icons.edit_calendar_rounded),
+                                      icon: const Icon(
+                                        Icons.edit_calendar_rounded,
+                                      ),
                                     ),
                                     IconButton(
                                       tooltip: 'تعديل الملاحظات',
-                                      onPressed: () => editBookingNotes(entries[i]),
+                                      onPressed: () =>
+                                          editBookingNotes(entries[i]),
                                       icon: const Icon(Icons.edit_note_rounded),
                                     ),
                                     IconButton(
                                       tooltip: 'إلغاء الحجز',
-                                      onPressed: () => cancelBooking(entries[i]),
-                                      icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                                      onPressed: () =>
+                                          cancelBooking(entries[i]),
+                                      icon: const Icon(
+                                        Icons.cancel_outlined,
+                                        color: Colors.red,
+                                      ),
                                     ),
                                   ],
                                 ] else ...[
                                   IconButton(
                                     tooltip: 'غياب / تأجيل (حسب سياسة الغياب)',
-                                    onPressed: () => postpone(entries[i]['id'] as int),
+                                    onPressed: () =>
+                                        postpone(entries[i]['id'] as int),
                                     icon: const Icon(Icons.pause_rounded),
                                   ),
                                   IconButton(
                                     tooltip: 'تمت الخدمة',
-                                    onPressed: () => completeEntry(entries[i]['id'] as int),
-                                    icon: const Icon(Icons.check_circle_outline_rounded),
+                                    onPressed: () =>
+                                        completeEntry(entries[i]['id'] as int),
+                                    icon: const Icon(
+                                      Icons.check_circle_outline_rounded,
+                                    ),
                                   ),
                                   if (widget.manager)
                                     IconButton(
                                       tooltip: 'تجاوز',
-                                      onPressed: () => overrideQ(entries[i]['id'] as int),
+                                      onPressed: () =>
+                                          overrideQ(entries[i]['id'] as int),
                                       icon: const Icon(Icons.flash_on_rounded),
                                     ),
                                 ],
@@ -3714,13 +5228,13 @@ class _QueueState extends State<QueueBookingPage> {
   }
 
   Widget _statusChip(String label, String? value) => ChoiceChip(
-        label: Text(label),
-        selected: status == value,
-        onSelected: (_) {
-          setState(() => status = value);
-          load();
-        },
-      );
+    label: Text(label),
+    selected: status == value,
+    onSelected: (_) {
+      setState(() => status = value);
+      load();
+    },
+  );
 }
 
 class DieselPage extends StatefulWidget {
@@ -3887,13 +5401,19 @@ class _DieselState extends State<DieselPage> {
     final reason = await askReason(
       context,
       'إلغاء حركة الديزل',
-      message: 'ستُعكس قيودها ويُردّ أثرها على المخزون والصندوق. ${statusName(x['kind'])} — ${x['liters']} لتر',
+      message:
+          'ستُعكس قيودها ويُردّ أثرها على المخزون والصندوق. ${statusName(x['kind'])} — ${x['liters']} لتر',
     );
     if (reason == null || !mounted) return;
     if (!await runGuarded(
       context,
-      () => widget.r.accounting.cancelDieselMovement(x['id'] as int, widget.userId, reason),
-    )) return;
+      () => widget.r.accounting.cancelDieselMovement(
+        x['id'] as int,
+        widget.userId,
+        reason,
+      ),
+    ))
+      return;
     await load();
   }
 
@@ -3904,14 +5424,27 @@ class _DieselState extends State<DieselPage> {
       builder: (d) => FormDialog(
         title: 'تعديل ملاحظات الحركة',
         children: [
-          TextField(controller: c, decoration: const InputDecoration(labelText: 'ملاحظات')),
-          const Text('الكمية والسعر والنوع تُصحَّح بإلغاء الحركة وإعادة إدخالها.'),
+          TextField(
+            controller: c,
+            decoration: const InputDecoration(labelText: 'ملاحظات'),
+          ),
+          const Text(
+            'الكمية والسعر والنوع تُصحَّح بإلغاء الحركة وإعادة إدخالها.',
+          ),
         ],
         onSave: () => Navigator.pop(d, true),
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.accounting.updateDieselNotes(x['id'] as int, c.text, widget.userId))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.accounting.updateDieselNotes(
+          x['id'] as int,
+          c.text,
+          widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
@@ -3921,87 +5454,105 @@ class _DieselState extends State<DieselPage> {
   @override
   Widget build(c) => enabled
       ? PageFrame(
-    title: 'الديزل',
-    subtitle: 'المخزون والحركات والتنبيه والسلف والتسليم',
-    actions: [
-      if (warning?['warning'] == true)
-        OutlinedButton.icon(
-          onPressed: () async {
-            final m =
-                double.tryParse(
-                  (await widget.r.settings())['diesel_snooze_minutes'] ?? '10',
-                ) ??
-                10;
-            if (!await runGuarded(context, () => widget.r.setSetting(
-              'diesel_warning_snoozed_until',
-              AppClock.now()
-                  .add(Duration(minutes: m.round()))
-                  .toIso8601String(),
-            ))) return;
-            await load();
-          },
-          icon: const Icon(Icons.snooze),
-          label: const Text('تأجيل التنبيه 10 دقائق'),
-        ),
-      FilledButton.icon(
-        onPressed: add,
-        icon: const Icon(Icons.local_gas_station),
-        label: const Text('حركة ديزل'),
-      ),
-    ],
-    child: Column(
-      children: [
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.oil_barrel, color: _cyan),
-            title: const Text('المخزون الحالي'),
-            subtitle: Text('${stock.toStringAsFixed(2)} لتر'),
-            trailing: warning?['warning'] == true
-                ? const Icon(Icons.warning_amber, color: Colors.orange)
-                : const Icon(Icons.check_circle, color: _green),
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          onChanged: (v) => setState(() => q = v),
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            labelText: 'بحث في حركات الديزل',
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView(
+          title: 'الديزل',
+          subtitle: 'المخزون والحركات والتنبيه والسلف والتسليم',
+          actions: [
+            if (warning?['warning'] == true)
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final m =
+                      double.tryParse(
+                        (await widget.r.settings())['diesel_snooze_minutes'] ??
+                            '10',
+                      ) ??
+                      10;
+                  if (!await runGuarded(
+                    context,
+                    () => widget.r.setSetting(
+                      'diesel_warning_snoozed_until',
+                      AppClock.now()
+                          .add(Duration(minutes: m.round()))
+                          .toIso8601String(),
+                    ),
+                  ))
+                    return;
+                  await load();
+                },
+                icon: const Icon(Icons.snooze),
+                label: const Text('تأجيل التنبيه 10 دقائق'),
+              ),
+            FilledButton.icon(
+              onPressed: add,
+              icon: const Icon(Icons.local_gas_station),
+              label: const Text('حركة ديزل'),
+            ),
+          ],
+          child: Column(
             children: [
-              for (final x in rows.where(
-                (x) =>
-                    '${x['beneficiary_name'] ?? ''} ${x['kind']} ${x['notes'] ?? ''}'
-                        .contains(q),
-              ))
-                Card(
-                  child: ListTile(
-                    title: Text(
-                      '${x['beneficiary_name'] ?? 'المخزون'} • ${statusName(x['kind'])}',
-                    ),
-                    subtitle: Text('${x['liters']} لتر • ${x['date']}${(x['notes'] ?? '').toString().isEmpty ? '' : ' • ${x['notes']}'}'),
-                    trailing: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(money(x['amount'])),
-                        if (x['irrigation_id'] == null) ...[
-                          IconButton(tooltip: 'تعديل الملاحظات', onPressed: () => editMoveNotes(x), icon: const Icon(Icons.edit_note_rounded)),
-                          IconButton(tooltip: 'إلغاء الحركة', onPressed: () => cancelMove(x), icon: const Icon(Icons.cancel_outlined, color: Colors.red)),
-                        ],
-                      ],
-                    ),
-                  ),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.oil_barrel, color: _cyan),
+                  title: const Text('المخزون الحالي'),
+                  subtitle: Text('${stock.toStringAsFixed(2)} لتر'),
+                  trailing: warning?['warning'] == true
+                      ? const Icon(Icons.warning_amber, color: Colors.orange)
+                      : const Icon(Icons.check_circle, color: _green),
                 ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                onChanged: (v) => setState(() => q = v),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  labelText: 'بحث في حركات الديزل',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView(
+                  children: [
+                    for (final x in rows.where(
+                      (x) =>
+                          '${x['beneficiary_name'] ?? ''} ${x['kind']} ${x['notes'] ?? ''}'
+                              .contains(q),
+                    ))
+                      Card(
+                        child: ListTile(
+                          title: Text(
+                            '${x['beneficiary_name'] ?? 'المخزون'} • ${statusName(x['kind'])}',
+                          ),
+                          subtitle: Text(
+                            '${x['liters']} لتر • ${x['date']}${(x['notes'] ?? '').toString().isEmpty ? '' : ' • ${x['notes']}'}',
+                          ),
+                          trailing: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(money(x['amount'])),
+                              if (x['irrigation_id'] == null) ...[
+                                IconButton(
+                                  tooltip: 'تعديل الملاحظات',
+                                  onPressed: () => editMoveNotes(x),
+                                  icon: const Icon(Icons.edit_note_rounded),
+                                ),
+                                IconButton(
+                                  tooltip: 'إلغاء الحركة',
+                                  onPressed: () => cancelMove(x),
+                                  icon: const Icon(
+                                    Icons.cancel_outlined,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
-        ),
-      ],
-    ),
-  )
+        )
       : const Center(child: Text('عناصر الديزل غير متاحة لأن المنظومة شمسية.'));
 }
 
@@ -4168,14 +5719,7 @@ class _PaymentsState extends State<PaymentsPage> {
             referenceNumber: reference.text,
             notes: note.text,
           );
-          final bal = await widget.r.accounting.beneficiaryBalance(party!);
-          await widget.r.notify(
-            beneficiaryId: party!,
-            type: 'balance',
-            title: 'تحديث الرصيد',
-            body:
-                'الرصيد الحالي: ${AccountingCalculations.balanceLabel(bal['balance'] ?? 0)}',
-          );
+          // إشعار المستفيد يُنشئه receivePayment نفسه داخل المعاملة؛ لا نضيف إشعارًا ثانيًا هنا.
         } else if (target == 'worker')
           await widget.r.accounting.payWorker(
             workerId: party!,
@@ -4183,6 +5727,7 @@ class _PaymentsState extends State<PaymentsPage> {
             paymentMethodId: method!,
             cashboxId: cb!,
             userId: widget.userId,
+            referenceNumber: reference.text,
             notes: note.text,
           );
         else
@@ -4192,6 +5737,7 @@ class _PaymentsState extends State<PaymentsPage> {
             paymentMethodId: method!,
             cashboxId: cb!,
             userId: widget.userId,
+            referenceNumber: reference.text,
             notes: note.text,
           );
         await load();
@@ -4200,7 +5746,7 @@ class _PaymentsState extends State<PaymentsPage> {
           builder: (_) => AlertDialog(
             title: const Text('تمت العملية'),
             content: const Text(
-              'تم حفظ الدفعة وتحديث الرصيد وإنشاء إشعار داخل التطبيق عند توفر المستفيد.',
+              'تم حفظ الدفعة وتحديث الرصيد، وأُرسل إشعار للمستفيد داخل التطبيق عند قبض دفعة منه.',
             ),
             actions: [
               TextButton(
@@ -4231,8 +5777,13 @@ class _PaymentsState extends State<PaymentsPage> {
     if (reason == null || !mounted) return;
     if (!await runGuarded(
       context,
-      () => widget.r.accounting.cancelPayment(x['id'] as int, widget.userId, reason),
-    )) return;
+      () => widget.r.accounting.cancelPayment(
+        x['id'] as int,
+        widget.userId,
+        reason,
+      ),
+    ))
+      return;
     msg('تم إلغاء الدفعة وعكس أثرها');
     await load();
   }
@@ -4278,6 +5829,12 @@ class _PaymentsState extends State<PaymentsPage> {
             children: [
               for (final x in rows.where(
                 (x) =>
+                    x[switch (target) {
+                          'worker' => 'worker_id',
+                          'partner' => 'partner_id',
+                          _ => 'beneficiary_id',
+                        }] !=
+                        null &&
                     '${x['party_name']} ${x['method_name']} ${x['cashbox_name']}'
                         .contains(q),
               ))
@@ -4293,14 +5850,19 @@ class _PaymentsState extends State<PaymentsPage> {
                           money(x['amount']),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            decoration: x['status'] == 'cancelled' ? TextDecoration.lineThrough : null,
+                            decoration: x['status'] == 'cancelled'
+                                ? TextDecoration.lineThrough
+                                : null,
                           ),
                         ),
                         if (x['status'] == 'posted')
                           IconButton(
                             tooltip: 'إلغاء الدفعة',
                             onPressed: () => cancelPay(x),
-                            icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                            icon: const Icon(
+                              Icons.cancel_outlined,
+                              color: Colors.red,
+                            ),
                           ),
                         IconButton(
                           tooltip: 'إيصال',
@@ -4373,9 +5935,15 @@ class _CashboxesState extends State<CashboxesPage> {
             DropdownButtonFormField<String>(
               value: ledger,
               items: const [
-                DropdownMenuItem(value: 'cash', child: Text('نقدي (حساب الصندوق 1000)')),
+                DropdownMenuItem(
+                  value: 'cash',
+                  child: Text('نقدي (حساب الصندوق 1000)'),
+                ),
                 DropdownMenuItem(value: 'bank', child: Text('بنك (حساب 1100)')),
-                DropdownMenuItem(value: 'wallet', child: Text('محفظة إلكترونية (حساب 1120)')),
+                DropdownMenuItem(
+                  value: 'wallet',
+                  child: Text('محفظة إلكترونية (حساب 1120)'),
+                ),
               ],
               onChanged: (v) => st(() => ledger = v!),
               decoration: const InputDecoration(labelText: 'نوع الصندوق'),
@@ -4385,7 +5953,8 @@ class _CashboxesState extends State<CashboxesPage> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'الرصيد الافتتاحي',
-                helperText: 'يُقيَّد تلقائيًا في الأستاذ مقابل الأرصدة الافتتاحية',
+                helperText:
+                    'يُقيَّد تلقائيًا في الأستاذ مقابل الأرصدة الافتتاحية',
               ),
             ),
           ],
@@ -4394,13 +5963,21 @@ class _CashboxesState extends State<CashboxesPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.createCashbox(
-        name: n.text.trim(),
-        openingBalance: int.tryParse(o.text) ?? 0,
-        currency: 'YER',
-        ledgerAccountCode: switch (ledger) { 'bank' => '1100', 'wallet' => '1120', _ => '1000' },
-        userId: widget.userId,
-      ))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.createCashbox(
+          name: n.text.trim(),
+          openingBalance: int.tryParse(o.text) ?? 0,
+          currency: 'YER',
+          ledgerAccountCode: switch (ledger) {
+            'bank' => '1100',
+            'wallet' => '1120',
+            _ => '1000',
+          },
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
@@ -4412,23 +5989,43 @@ class _CashboxesState extends State<CashboxesPage> {
       builder: (d) => FormDialog(
         title: 'تعديل الصندوق',
         children: [
-          TextField(controller: n, decoration: const InputDecoration(labelText: 'اسم الصندوق *')),
-          const Text('الرصيد الافتتاحي وحساب الصندوق لا يُعدَّلان بعد الإنشاء؛ يُصحَّح الرصيد بتحويل.'),
+          TextField(
+            controller: n,
+            decoration: const InputDecoration(labelText: 'اسم الصندوق *'),
+          ),
+          const Text(
+            'الرصيد الافتتاحي وحساب الصندوق لا يُعدَّلان بعد الإنشاء؛ يُصحَّح الرصيد بتحويل.',
+          ),
         ],
         onSave: () => Navigator.pop(d, n.text.trim().isNotEmpty),
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.updateCashbox(x['id'] as int, name: n.text, userId: widget.userId))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.updateCashbox(
+          x['id'] as int,
+          name: n.text,
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
 
   Future<void> deleteBox(Map<String, Object?> x) async {
-    final reason = await askReason(context, 'حذف الصندوق «${x['name']}»',
-        message: 'يُرفض الحذف إن كان رصيده غير صفر أو مرتبطًا بطرق دفع مفعّلة.');
+    final reason = await askReason(
+      context,
+      'حذف الصندوق «${x['name']}»',
+      message: 'يُرفض الحذف إن كان رصيده غير صفر أو مرتبطًا بطرق دفع مفعّلة.',
+    );
     if (reason == null || !mounted) return;
-    if (!await runGuarded(context, () => widget.r.deleteCashbox(x['id'] as int, widget.userId, reason))) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.deleteCashbox(x['id'] as int, widget.userId, reason),
+    ))
+      return;
     await load();
   }
 
@@ -4444,22 +6041,41 @@ class _CashboxesState extends State<CashboxesPage> {
         builder: (c, st) => FormDialog(
           title: 'تعديل طريقة الدفع',
           children: [
-            TextField(controller: n, decoration: const InputDecoration(labelText: 'اسم طريقة الدفع *')),
+            TextField(
+              controller: n,
+              decoration: const InputDecoration(labelText: 'اسم طريقة الدفع *'),
+            ),
             DropdownButtonFormField<String>(
               value: type,
               items: [
-                for (final t in ['cash', 'check', 'bank_transfer', 'wallet', 'other'])
+                for (final t in [
+                  'cash',
+                  'check',
+                  'bank_transfer',
+                  'wallet',
+                  'other',
+                ])
                   DropdownMenuItem(value: t, child: Text(paymentTypeName(t))),
               ],
               onChanged: (v) => st(() => type = v!),
               decoration: const InputDecoration(labelText: 'نوع الطريقة'),
             ),
-            TextField(controller: a, decoration: const InputDecoration(labelText: 'رقم الحساب')),
-            TextField(controller: b, decoration: const InputDecoration(labelText: 'اسم البنك')),
+            TextField(
+              controller: a,
+              decoration: const InputDecoration(labelText: 'رقم الحساب'),
+            ),
+            TextField(
+              controller: b,
+              decoration: const InputDecoration(labelText: 'اسم البنك'),
+            ),
             DropdownButtonFormField<int>(
               value: boxes.any((e) => e['id'] == cb) ? cb : null,
               items: [
-                for (final e in boxes) DropdownMenuItem(value: e['id'] as int, child: Text('${e['name']}')),
+                for (final e in boxes)
+                  DropdownMenuItem(
+                    value: e['id'] as int,
+                    child: Text('${e['name']}'),
+                  ),
               ],
               onChanged: (v) => st(() => cb = v),
               decoration: const InputDecoration(labelText: 'الصندوق المرتبط'),
@@ -4470,24 +6086,36 @@ class _CashboxesState extends State<CashboxesPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.updatePaymentMethod(
-        x['id'] as int,
-        name: n.text,
-        type: type,
-        cashboxId: cb,
-        accountNumber: a.text,
-        bankName: b.text,
-        userId: widget.userId,
-      ))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.updatePaymentMethod(
+          x['id'] as int,
+          name: n.text,
+          type: type,
+          cashboxId: cb,
+          accountNumber: a.text,
+          bankName: b.text,
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
 
   Future<void> deleteMethod(Map<String, Object?> x) async {
-    final reason = await askReason(context, 'حذف طريقة الدفع «${x['name']}»',
-        message: 'تبقى الدفعات السابقة مرتبطة بها، ولا تظهر في الاختيارات الجديدة.');
+    final reason = await askReason(
+      context,
+      'حذف طريقة الدفع «${x['name']}»',
+      message:
+          'تبقى الدفعات السابقة مرتبطة بها، ولا تظهر في الاختيارات الجديدة.',
+    );
     if (reason == null || !mounted) return;
-    if (!await runGuarded(context, () => widget.r.deletePaymentMethod(x['id'] as int, widget.userId, reason))) return;
+    if (!await runGuarded(
+      context,
+      () => widget.r.deletePaymentMethod(x['id'] as int, widget.userId, reason),
+    ))
+      return;
     await load();
   }
 
@@ -4548,14 +6176,18 @@ class _CashboxesState extends State<CashboxesPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.createPaymentMethod(
-        name: n.text.trim(),
-        type: type,
-        cashboxId: cb,
-        accountNumber: a.text,
-        bankName: b.text,
-        userId: widget.userId,
-      ))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.createPaymentMethod(
+          name: n.text.trim(),
+          type: type,
+          cashboxId: cb,
+          accountNumber: a.text,
+          bankName: b.text,
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
@@ -4689,12 +6321,22 @@ class _CashboxesState extends State<CashboxesPage> {
                 ),
               ),
               title: Text('${x['name']}'),
-              subtitle: Text('الرصيد الحالي: ${money(x['current_balance'])} • ${ledgerAccountName(x['ledger_account_code'])}'),
+              subtitle: Text(
+                'الرصيد الحالي: ${money(x['current_balance'])} • ${ledgerAccountName(x['ledger_account_code'])}',
+              ),
               trailing: Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  IconButton(tooltip: 'تعديل', onPressed: () => editBox(x), icon: const Icon(Icons.edit_outlined)),
-                  IconButton(tooltip: 'حذف', onPressed: () => deleteBox(x), icon: const Icon(Icons.delete_outline, color: Colors.red)),
+                  IconButton(
+                    tooltip: 'تعديل',
+                    onPressed: () => editBox(x),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'حذف',
+                    onPressed: () => deleteBox(x),
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  ),
                   const Icon(Icons.open_in_new),
                 ],
               ),
@@ -4724,8 +6366,16 @@ class _CashboxesState extends State<CashboxesPage> {
               trailing: Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  IconButton(tooltip: 'تعديل', onPressed: () => editMethod(x), icon: const Icon(Icons.edit_outlined)),
-                  IconButton(tooltip: 'حذف', onPressed: () => deleteMethod(x), icon: const Icon(Icons.delete_outline, color: Colors.red)),
+                  IconButton(
+                    tooltip: 'تعديل',
+                    onPressed: () => editMethod(x),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'حذف',
+                    onPressed: () => deleteMethod(x),
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  ),
                   const Icon(Icons.open_in_new),
                 ],
               ),
@@ -4884,13 +6534,19 @@ class _ExpensesState extends State<ExpensesPage> {
     final reason = await askReason(
       context,
       'إلغاء المصروف',
-      message: 'سيُعكس القيد ويُعاد المبلغ إلى الصندوق. ${x['title']} — ${money(x['amount'])}',
+      message:
+          'سيُعكس القيد ويُعاد المبلغ إلى الصندوق. ${x['title']} — ${money(x['amount'])}',
     );
     if (reason == null || !mounted) return;
     if (!await runGuarded(
       context,
-      () => widget.r.accounting.cancelExpense(x['id'] as int, widget.userId, reason),
-    )) return;
+      () => widget.r.accounting.cancelExpense(
+        x['id'] as int,
+        widget.userId,
+        reason,
+      ),
+    ))
+      return;
     msg('تم إلغاء المصروف وعكس أثره');
     await load();
   }
@@ -4933,14 +6589,19 @@ class _ExpensesState extends State<ExpensesPage> {
                         Text(
                           money(x['amount']),
                           style: TextStyle(
-                            decoration: x['status'] == 'cancelled' ? TextDecoration.lineThrough : null,
+                            decoration: x['status'] == 'cancelled'
+                                ? TextDecoration.lineThrough
+                                : null,
                           ),
                         ),
                         if (x['status'] == 'posted')
                           IconButton(
                             tooltip: 'إلغاء المصروف',
                             onPressed: () => cancelExp(x),
-                            icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                            icon: const Icon(
+                              Icons.cancel_outlined,
+                              color: Colors.red,
+                            ),
                           ),
                       ],
                     ),
@@ -4957,7 +6618,13 @@ class _ExpensesState extends State<ExpensesPage> {
 class WorkersPage extends StatefulWidget {
   final StationRepository r;
   final int userId;
-  const WorkersPage(this.r, {required this.userId, super.key});
+  final bool manager;
+  const WorkersPage(
+    this.r, {
+    required this.userId,
+    required this.manager,
+    super.key,
+  });
   @override
   State<WorkersPage> createState() => _WorkersState();
 }
@@ -4979,6 +6646,7 @@ class _WorkersState extends State<WorkersPage> {
 
   Future<void> add() async {
     final n = TextEditingController(), phone = TextEditingController();
+    final open = TextEditingController(text: '0');
     final rate = TextEditingController(),
         salary = TextEditingController(),
         percent = TextEditingController();
@@ -4987,6 +6655,7 @@ class _WorkersState extends State<WorkersPage> {
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (c, s) => AlertDialog(
+          scrollable: true,
           title: const Text('إضافة عامل'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -4998,6 +6667,16 @@ class _WorkersState extends State<WorkersPage> {
               TextField(
                 controller: phone,
                 decoration: const InputDecoration(labelText: 'الهاتف'),
+              ),
+              TextField(
+                controller: open,
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'الرصيد الافتتاحي',
+                  helperText: 'موجب = له على المحطة، سالب = عليه. يُقيَّد في الأستاذ.',
+                ),
               ),
               DropdownButtonFormField<String>(
                 value: type,
@@ -5035,7 +6714,12 @@ class _WorkersState extends State<WorkersPage> {
               child: const Text('إلغاء'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(c, n.text.trim().isNotEmpty),
+              onPressed: () => Navigator.pop(
+                c,
+                n.text.trim().isNotEmpty &&
+                    (open.text.trim().isEmpty ||
+                        int.tryParse(open.text.trim()) != null),
+              ),
               child: const Text('حفظ'),
             ),
           ],
@@ -5043,14 +6727,20 @@ class _WorkersState extends State<WorkersPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.createWorker(
-        name: n.text,
-        payType: type,
-        fixedSalary: int.tryParse(salary.text) ?? 0,
-        hourlyRate: int.tryParse(rate.text) ?? 0,
-        percentageRate: double.tryParse(percent.text) ?? 0,
-        userId: widget.userId,
-      ))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.createWorker(
+          name: n.text,
+          phone: phone.text,
+          opening: int.tryParse(open.text.trim()) ?? 0,
+          payType: type,
+          fixedSalary: int.tryParse(salary.text) ?? 0,
+          hourlyRate: int.tryParse(rate.text) ?? 0,
+          percentageRate: double.tryParse(percent.text) ?? 0,
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
@@ -5061,7 +6751,11 @@ class _WorkersState extends State<WorkersPage> {
     final methods = await widget.r.paymentMethods();
     if (!mounted) return;
     final cashM = methods.where((m) => m['type'] == 'cash').toList();
-    int? pm = (cashM.isNotEmpty ? cashM.first : (methods.isNotEmpty ? methods.first : null))?['id'] as int?;
+    int? pm =
+        (cashM.isNotEmpty
+                ? cashM.first
+                : (methods.isNotEmpty ? methods.first : null))?['id']
+            as int?;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(
@@ -5087,7 +6781,10 @@ class _WorkersState extends State<WorkersPage> {
                   value: pm,
                   items: [
                     for (final m in methods)
-                      DropdownMenuItem(value: m['id'] as int, child: Text('${m['name']}')),
+                      DropdownMenuItem(
+                        value: m['id'] as int,
+                        child: Text('${m['name']}'),
+                      ),
                   ],
                   onChanged: (v) => s(() => pm = v),
                   decoration: const InputDecoration(labelText: 'طريقة الدفع'),
@@ -5097,11 +6794,12 @@ class _WorkersState extends State<WorkersPage> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'المبلغ'),
               ),
-              TextField(
-                controller: h,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'عدد الساعات'),
-              ),
+              if (type == 'accrual')
+                TextField(
+                  controller: h,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'عدد الساعات'),
+                ),
             ],
           ),
           actions: [
@@ -5118,37 +6816,162 @@ class _WorkersState extends State<WorkersPage> {
       ),
     );
     if (ok == true) {
-      try {
-        await widget.r.workerTransaction(
+      if (!await runGuarded(
+        context,
+        () => widget.r.workerTransaction(
           workerId: x['id'] as int,
           type: type,
           amount: int.parse(a.text),
-          hours: double.tryParse(h.text) ?? 0,
+          hours: type == 'accrual' ? (double.tryParse(h.text) ?? 0) : 0,
           paymentMethodId: type == 'payment' ? pm : null,
           userId: widget.userId,
-        );
-        await load();
-      } catch (e) {
-        msg(friendlyError(e));
-      }
+        ),
+      ))
+        return;
+      await load();
     }
   }
 
-  Future<void> editWorker(Map<String,Object?> x) async {
-    final n=TextEditingController(text:'${x['name']??''}'), phone=TextEditingController(text:'${x['phone']??''}');
-    String type='${x['pay_type']??'hourly'}';
-    final rate=TextEditingController(text:'${x['hourly_rate']??0}'), salary=TextEditingController(text:'${x['fixed_salary']??0}'), pct=TextEditingController(text:'${x['percentage_rate']??0}');
-    final ok=await showDialog<bool>(context:context,builder:(_) => StatefulBuilder(builder:(c,s)=>AlertDialog(title:const Text('تعديل معلومات العامل'),content:Column(mainAxisSize:MainAxisSize.min,children:[
-      TextField(controller:n,decoration:const InputDecoration(labelText:'الاسم')), TextField(controller:phone,decoration:const InputDecoration(labelText:'الهاتف')),
-      DropdownButtonFormField<String>(value:type,items:const [DropdownMenuItem(value:'fixed',child:Text('راتب ثابت')),DropdownMenuItem(value:'hourly',child:Text('بالساعة')),DropdownMenuItem(value:'percentage',child:Text('نسبة'))],onChanged:(v)=>s(()=>type=v!),decoration:const InputDecoration(labelText:'طريقة الاستحقاق')),
-      if(type=='fixed') TextField(controller:salary,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الراتب الثابت')),
-      if(type=='hourly') TextField(controller:rate,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'أجر الساعة')),
-      if(type=='percentage') TextField(controller:pct,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'النسبة %')),
-    ]),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,n.text.trim().isNotEmpty),child:const Text('حفظ'))])));
-    if(ok==true){await widget.r.updateWorker(x['id'] as int,{'name':n.text.trim(),'phone':phone.text,'pay_type':type,'fixed_salary':int.tryParse(salary.text)??0,'hourly_rate':int.tryParse(rate.text)??0,'percentage_rate':double.tryParse(pct.text)??0},widget.userId);await load();}
+  Future<void> editWorker(Map<String, Object?> x) async {
+    final n = TextEditingController(text: '${x['name'] ?? ''}'),
+        phone = TextEditingController(text: '${x['phone'] ?? ''}');
+    String type = '${x['pay_type'] ?? 'hourly'}';
+    final rate = TextEditingController(text: '${x['hourly_rate'] ?? 0}'),
+        salary = TextEditingController(text: '${x['fixed_salary'] ?? 0}'),
+        pct = TextEditingController(text: '${x['percentage_rate'] ?? 0}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (c, s) => AlertDialog(
+          title: const Text('تعديل معلومات العامل'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: n,
+                decoration: const InputDecoration(labelText: 'الاسم'),
+              ),
+              TextField(
+                controller: phone,
+                decoration: const InputDecoration(labelText: 'الهاتف'),
+              ),
+              DropdownButtonFormField<String>(
+                value: type,
+                items: const [
+                  DropdownMenuItem(value: 'fixed', child: Text('راتب ثابت')),
+                  DropdownMenuItem(value: 'hourly', child: Text('بالساعة')),
+                  DropdownMenuItem(value: 'percentage', child: Text('نسبة')),
+                ],
+                onChanged: (v) => s(() => type = v!),
+                decoration: const InputDecoration(labelText: 'طريقة الاستحقاق'),
+              ),
+              if (type == 'fixed')
+                TextField(
+                  controller: salary,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'الراتب الثابت'),
+                ),
+              if (type == 'hourly')
+                TextField(
+                  controller: rate,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'أجر الساعة'),
+                ),
+              if (type == 'percentage')
+                TextField(
+                  controller: pct,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'النسبة %'),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, n.text.trim().isNotEmpty),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(context, () => widget.r.updateWorker(x['id'] as int, {
+        'name': n.text.trim(),
+        'phone': phone.text,
+        'pay_type': type,
+        'fixed_salary': int.tryParse(salary.text) ?? 0,
+        'hourly_rate': int.tryParse(rate.text) ?? 0,
+        'percentage_rate': double.tryParse(pct.text) ?? 0,
+      }, widget.userId)))
+        return;
+      await load();
+    }
   }
-  Future<void> deleteWorker(Map<String,Object?> x) async { final r=TextEditingController(); final ok=await showDialog<bool>(context:context,builder:(_)=>FormDialog(title:'حذف العامل',children:[const Text('سيتم إخفاؤه من القوائم دون حذف حركاته المحاسبية.'),TextField(controller:r,decoration:const InputDecoration(labelText:'سبب الحذف *'))],onSave:()=>Navigator.pop(context,r.text.trim().isNotEmpty))); if(ok==true){await widget.r.deleteWorker(x['id'] as int,widget.userId,r.text);await load();}}
-  void workerActions(Map<String,Object?> x) { showModalBottomSheet(context:context,showDragHandle:true,builder:(c)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('تعديل معلومات العامل'),onTap:(){Navigator.pop(c);editWorker(x);}),ListTile(leading:const Icon(Icons.delete_outline,color:Colors.red),title:const Text('حذف'),onTap:(){Navigator.pop(c);deleteWorker(x);})]))); }
+
+  Future<void> deleteWorker(Map<String, Object?> x) async {
+    if (!widget.manager) {
+      msg('حذف السجلات متاح للمدير فقط');
+      return;
+    }
+    final r = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => FormDialog(
+        title: 'حذف العامل',
+        children: [
+          const Text('سيتم إخفاؤه من القوائم دون حذف حركاته المحاسبية.'),
+          TextField(
+            controller: r,
+            decoration: const InputDecoration(labelText: 'سبب الحذف *'),
+          ),
+        ],
+        onSave: () => Navigator.pop(context, r.text.trim().isNotEmpty),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(
+        context,
+        () => widget.r.deleteWorker(x['id'] as int, widget.userId, r.text),
+      ))
+        return;
+      await load();
+    }
+  }
+
+  void workerActions(Map<String, Object?> x) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('تعديل معلومات العامل'),
+              onTap: () {
+                Navigator.pop(c);
+                editWorker(x);
+              },
+            ),
+            if (widget.manager)
+              ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('حذف'),
+              onTap: () {
+                Navigator.pop(c);
+                deleteWorker(x);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   void msg(String x) {
     if (mounted)
@@ -5164,7 +6987,12 @@ class _WorkersState extends State<WorkersPage> {
       title: 'العمال',
       subtitle: 'الأجر بالساعة أو النسبة أو الراتب الثابت مع الاستحقاق والدفع',
       actions: [
-        OutlinedButton.icon(onPressed: () => ReportService(widget.r).printPdf('worker_transactions'), icon: const Icon(Icons.picture_as_pdf_rounded), label: const Text('تقرير العمال')),
+        OutlinedButton.icon(
+          onPressed: () =>
+              ReportService(widget.r).printPdf('worker_transactions'),
+          icon: const Icon(Icons.picture_as_pdf_rounded),
+          label: const Text('تقرير العمال'),
+        ),
         FilledButton.icon(
           onPressed: add,
           icon: const Icon(Icons.person_add_alt),
@@ -5184,16 +7012,121 @@ class _WorkersState extends State<WorkersPage> {
           Expanded(
             child: filtered.isEmpty
                 ? const EmptyView('لا يوجد عمال مطابقون')
-                : LayoutBuilder(builder: (_, box) {
-                    final cols = box.maxWidth >= 1100 ? 3 : box.maxWidth >= 720 ? 2 : 1;
-                    final gap = 12.0; final w = (box.maxWidth-gap*(cols-1))/cols;
-                    return SingleChildScrollView(child: Wrap(spacing:gap,runSpacing:gap,children:[for(final x in filtered) SizedBox(width:w,child:InkWell(
-                      borderRadius:BorderRadius.circular(24),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>RecordDetailsPage(widget.r,kind:'worker',id:x['id'] as int,title:'تفاصيل العامل'))),onLongPress:()=>workerActions(x),
-                      child: Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                        Row(children:[CircleAvatar(child:const Icon(Icons.engineering_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')editWorker(x);if(v=='delete')deleteWorker(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),
-                        const SizedBox(height:12),Text(payTypeName('${x['pay_type']}'),style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:8),Text(AccountingCalculations.balanceLabel((x['balance'] as num?)?.round() ?? 0),style:const TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:12),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:()=>transaction(x),icon:const Icon(Icons.account_balance_wallet_outlined),label:const Text('حركة العامل'))
-                      ])))))]));
-                  }),
+                : LayoutBuilder(
+                    builder: (_, box) {
+                      final cols = box.maxWidth >= 1100
+                          ? 3
+                          : box.maxWidth >= 720
+                          ? 2
+                          : 1;
+                      final gap = 12.0;
+                      final w = (box.maxWidth - gap * (cols - 1)) / cols;
+                      return SingleChildScrollView(
+                        child: Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: [
+                            for (final x in filtered)
+                              SizedBox(
+                                width: w,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(24),
+                                  onTap: () => Navigator.push(
+                                    c,
+                                    MaterialPageRoute(
+                                      builder: (_) => RecordDetailsPage(
+                                        widget.r,
+                                        kind: 'worker',
+                                        id: x['id'] as int,
+                                        title: 'تفاصيل العامل',
+                                      ),
+                                    ),
+                                  ),
+                                  onLongPress: () => workerActions(x),
+                                  child: Card(
+                                    margin: EdgeInsets.zero,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(18),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              CircleAvatar(
+                                                child: const Icon(
+                                                  Icons.engineering_rounded,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  '${x['name']}',
+                                                  style: const TextStyle(
+                                                    fontSize: 17,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                              ),
+                                              PopupMenuButton<String>(
+                                                onSelected: (v) {
+                                                  if (v == 'edit')
+                                                    editWorker(x);
+                                                  if (v == 'delete')
+                                                    deleteWorker(x);
+                                                },
+                                                itemBuilder: (_) => [
+  const PopupMenuItem(value: 'edit', child: Text('تعديل بيانات العامل')),
+  if (widget.manager)
+    const PopupMenuItem(value: 'delete', child: Text('حذف')),
+],
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            payTypeName('${x['pay_type']}'),
+                                            style: TextStyle(
+                                              color: Theme.of(
+                                                c,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            AccountingCalculations.partyDueLabel(
+  ((x['balance'] as num?)?.round() ?? 0),
+),
+style: TextStyle(
+  fontWeight: FontWeight.w900,
+  color: ((x['balance'] as num?)?.round() ?? 0) < 0
+      ? Colors.red
+      : _green,
+),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: OutlinedButton.icon(
+                                              onPressed: () => transaction(x),
+                                              icon: const Icon(
+                                                Icons
+                                                    .account_balance_wallet_outlined,
+                                              ),
+                                              label: const Text('حركة العامل'),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -5204,7 +7137,13 @@ class _WorkersState extends State<WorkersPage> {
 class PartnersPage extends StatefulWidget {
   final StationRepository r;
   final int userId;
-  const PartnersPage(this.r, {required this.userId, super.key});
+  final bool manager;
+  const PartnersPage(
+    this.r, {
+    required this.userId,
+    required this.manager,
+    super.key,
+  });
   @override
   State<PartnersPage> createState() => _PartnersState();
 }
@@ -5226,12 +7165,14 @@ class _PartnersState extends State<PartnersPage> {
 
   Future<void> add() async {
     final n = TextEditingController(), phone = TextEditingController();
+    final open = TextEditingController(text: '0');
     final sh = TextEditingController(), pc = TextEditingController();
     String mode = 'percentage';
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (c, s) => AlertDialog(
+          scrollable: true,
           title: const Text('إضافة شريك'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -5243,6 +7184,16 @@ class _PartnersState extends State<PartnersPage> {
               TextField(
                 controller: phone,
                 decoration: const InputDecoration(labelText: 'الهاتف'),
+              ),
+              TextField(
+                controller: open,
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'الرصيد الافتتاحي',
+                  helperText: 'موجب = له على المحطة، سالب = عليه. يُقيَّد في الأستاذ.',
+                ),
               ),
               DropdownButtonFormField<String>(
                 value: mode,
@@ -5276,7 +7227,12 @@ class _PartnersState extends State<PartnersPage> {
               child: const Text('إلغاء'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(c, n.text.trim().isNotEmpty),
+              onPressed: () => Navigator.pop(
+                c,
+                n.text.trim().isNotEmpty &&
+                    (open.text.trim().isEmpty ||
+                        int.tryParse(open.text.trim()) != null),
+              ),
               child: const Text('حفظ'),
             ),
           ],
@@ -5284,14 +7240,19 @@ class _PartnersState extends State<PartnersPage> {
       ),
     );
     if (ok == true) {
-      if (!await runGuarded(context, () => widget.r.createPartner(
-        name: n.text,
-        mode: mode,
-        shares: int.tryParse(sh.text) ?? 0,
-        percentage: double.tryParse(pc.text) ?? 0,
-        phone: phone.text,
-        userId: widget.userId,
-      ))) return;
+      if (!await runGuarded(
+        context,
+        () => widget.r.createPartner(
+          name: n.text,
+          mode: mode,
+          shares: int.tryParse(sh.text) ?? 0,
+          percentage: double.tryParse(pc.text) ?? 0,
+          phone: phone.text,
+          opening: int.tryParse(open.text.trim()) ?? 0,
+          userId: widget.userId,
+        ),
+      ))
+        return;
       await load();
     }
   }
@@ -5408,14 +7369,142 @@ class _PartnersState extends State<PartnersPage> {
     }
   }
 
-  Future<void> editPartner(Map<String,Object?> x) async {
-    final n=TextEditingController(text:'${x['name']??''}'), phone=TextEditingController(text:'${x['phone']??''}'), pct=TextEditingController(text:'${x['ownership_percentage']??0}'), sh=TextEditingController(text:'${x['shares_count']??0}');
-    String mode='${x['ownership_mode']??'percentage'}';
-    final ok=await showDialog<bool>(context:context,builder:(_)=>StatefulBuilder(builder:(c,s)=>AlertDialog(title:const Text('تعديل معلومات الشريك'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:n,decoration:const InputDecoration(labelText:'الاسم')),TextField(controller:phone,decoration:const InputDecoration(labelText:'الهاتف')),DropdownButtonFormField<String>(value:mode,items:const [DropdownMenuItem(value:'percentage',child:Text('نسبة ملكية')),DropdownMenuItem(value:'shares',child:Text('عدد حصص'))],onChanged:(v)=>s(()=>mode=v!),decoration:const InputDecoration(labelText:'طريقة الملكية')),if(mode=='percentage')TextField(controller:pct,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'نسبة الملكية %')),if(mode=='shares')TextField(controller:sh,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'عدد الحصص'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,n.text.trim().isNotEmpty),child:const Text('حفظ'))])));
-    if(ok==true){await widget.r.updatePartner(x['id'] as int,{'name':n.text.trim(),'phone':phone.text,'ownership_mode':mode,'ownership_percentage':double.tryParse(pct.text)??0,'shares_count':int.tryParse(sh.text)??0},widget.userId);await load();}
+  Future<void> editPartner(Map<String, Object?> x) async {
+    final n = TextEditingController(text: '${x['name'] ?? ''}'),
+        phone = TextEditingController(text: '${x['phone'] ?? ''}'),
+        pct = TextEditingController(text: '${x['ownership_percentage'] ?? 0}'),
+        sh = TextEditingController(text: '${x['shares_count'] ?? 0}');
+    String mode = '${x['ownership_mode'] ?? 'percentage'}';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (c, s) => AlertDialog(
+          title: const Text('تعديل معلومات الشريك'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: n,
+                decoration: const InputDecoration(labelText: 'الاسم'),
+              ),
+              TextField(
+                controller: phone,
+                decoration: const InputDecoration(labelText: 'الهاتف'),
+              ),
+              DropdownButtonFormField<String>(
+                value: mode,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'percentage',
+                    child: Text('نسبة ملكية'),
+                  ),
+                  DropdownMenuItem(value: 'shares', child: Text('عدد حصص')),
+                ],
+                onChanged: (v) => s(() => mode = v!),
+                decoration: const InputDecoration(labelText: 'طريقة الملكية'),
+              ),
+              if (mode == 'percentage')
+                TextField(
+                  controller: pct,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'نسبة الملكية %',
+                  ),
+                ),
+              if (mode == 'shares')
+                TextField(
+                  controller: sh,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'عدد الحصص'),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, n.text.trim().isNotEmpty),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(context, () => widget.r.updatePartner(x['id'] as int, {
+        'name': n.text.trim(),
+        'phone': phone.text,
+        'ownership_mode': mode,
+        'ownership_percentage': double.tryParse(pct.text) ?? 0,
+        'shares_count': int.tryParse(sh.text) ?? 0,
+      }, widget.userId)))
+        return;
+      await load();
+    }
   }
-  Future<void> deletePartner(Map<String,Object?> x) async { final r=TextEditingController(); final ok=await showDialog<bool>(context:context,builder:(_)=>FormDialog(title:'حذف الشريك',children:[const Text('سيتم إخفاؤه من القوائم دون حذف حركاته المحاسبية.'),TextField(controller:r,decoration:const InputDecoration(labelText:'سبب الحذف *'))],onSave:()=>Navigator.pop(context,r.text.trim().isNotEmpty)));if(ok==true){await widget.r.deletePartner(x['id'] as int,widget.userId,r.text);await load();}}
-  void partnerActions(Map<String,Object?> x){showModalBottomSheet(context:context,showDragHandle:true,builder:(c)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('تعديل معلومات الشريك'),onTap:(){Navigator.pop(c);editPartner(x);}),ListTile(leading:const Icon(Icons.delete_outline,color:Colors.red),title:const Text('حذف'),onTap:(){Navigator.pop(c);deletePartner(x);})])));}
+
+  Future<void> deletePartner(Map<String, Object?> x) async {
+    if (!widget.manager) {
+      msg('حذف السجلات متاح للمدير فقط');
+      return;
+    }
+    final r = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => FormDialog(
+        title: 'حذف الشريك',
+        children: [
+          const Text('سيتم إخفاؤه من القوائم دون حذف حركاته المحاسبية.'),
+          TextField(
+            controller: r,
+            decoration: const InputDecoration(labelText: 'سبب الحذف *'),
+          ),
+        ],
+        onSave: () => Navigator.pop(context, r.text.trim().isNotEmpty),
+      ),
+    );
+    if (ok == true) {
+      if (!await runGuarded(
+        context,
+        () => widget.r.deletePartner(x['id'] as int, widget.userId, r.text),
+      ))
+        return;
+      await load();
+    }
+  }
+
+  void partnerActions(Map<String, Object?> x) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('تعديل معلومات الشريك'),
+              onTap: () {
+                Navigator.pop(c);
+                editPartner(x);
+              },
+            ),
+            if (widget.manager)
+              ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('حذف'),
+              onTap: () {
+                Navigator.pop(c);
+                deletePartner(x);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   void msg(String x) {
     if (mounted)
@@ -5431,7 +7520,11 @@ class _PartnersState extends State<PartnersPage> {
       title: 'الشركاء',
       subtitle: 'ملكية الشركاء وحصصهم واستحقاقاتهم ومدفوعاتهم',
       actions: [
-        OutlinedButton.icon(onPressed: () => ReportService(widget.r).printPdf('partner_accounts'), icon: const Icon(Icons.picture_as_pdf_rounded), label: const Text('تقرير الشركاء')),
+        OutlinedButton.icon(
+          onPressed: () => ReportService(widget.r).printPdf('partner_accounts'),
+          icon: const Icon(Icons.picture_as_pdf_rounded),
+          label: const Text('تقرير الشركاء'),
+        ),
         FilledButton.icon(
           onPressed: add,
           icon: const Icon(Icons.group_add),
@@ -5451,15 +7544,279 @@ class _PartnersState extends State<PartnersPage> {
           Expanded(
             child: filtered.isEmpty
                 ? const EmptyView('لا يوجد شركاء مطابقون')
-                : LayoutBuilder(builder: (_, box) {
-                    final cols=box.maxWidth>=1100?3:box.maxWidth>=720?2:1; final gap=12.0; final w=(box.maxWidth-gap*(cols-1))/cols;
-                    return SingleChildScrollView(child:Wrap(spacing:gap,runSpacing:gap,children:[for(final x in filtered) SizedBox(width:w,child:InkWell(borderRadius:BorderRadius.circular(24),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>RecordDetailsPage(widget.r,kind:'partner',id:x['id'] as int,title:'تفاصيل الشريك'))),onLongPress:()=>partnerActions(x),child:Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[CircleAvatar(child:const Icon(Icons.handshake_rounded)),const SizedBox(width:12),Expanded(child:Text('${x['name']}',style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')editPartner(x);if(v=='delete')deletePartner(x);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('تعديل معلومات المستخدم')),PopupMenuItem(value:'delete',child:Text('حذف'))])]),const SizedBox(height:12),Text(x['ownership_mode']=='percentage'?'نسبة ملكية ${x['ownership_percentage']??0}%':'عدد حصص ${x['shares_count']??0}',style:TextStyle(color:Theme.of(c).colorScheme.onSurfaceVariant)),const SizedBox(height:8),Text(AccountingCalculations.balanceLabel((x['balance'] as num?)?.round() ?? 0),style:const TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:12),Row(children:[Expanded(child:OutlinedButton.icon(onPressed:()=>share(x),icon:const Icon(Icons.add_chart),label:const Text('استحقاق'))),const SizedBox(width:8),Expanded(child:OutlinedButton.icon(onPressed:()=>pay(x),icon:const Icon(Icons.payments),label:const Text('دفع')))])])))))]));
-                  }),
+                : LayoutBuilder(
+                    builder: (_, box) {
+                      final cols = box.maxWidth >= 1100
+                          ? 3
+                          : box.maxWidth >= 720
+                          ? 2
+                          : 1;
+                      final gap = 12.0;
+                      final w = (box.maxWidth - gap * (cols - 1)) / cols;
+                      return SingleChildScrollView(
+                        child: Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: [
+                            for (final x in filtered)
+                              SizedBox(
+                                width: w,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(24),
+                                  onTap: () => Navigator.push(
+                                    c,
+                                    MaterialPageRoute(
+                                      builder: (_) => RecordDetailsPage(
+                                        widget.r,
+                                        kind: 'partner',
+                                        id: x['id'] as int,
+                                        title: 'تفاصيل الشريك',
+                                      ),
+                                    ),
+                                  ),
+                                  onLongPress: () => partnerActions(x),
+                                  child: Card(
+                                    margin: EdgeInsets.zero,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(18),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              CircleAvatar(
+                                                child: const Icon(
+                                                  Icons.handshake_rounded,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  '${x['name']}',
+                                                  style: const TextStyle(
+                                                    fontSize: 17,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                              ),
+                                              PopupMenuButton<String>(
+                                                onSelected: (v) {
+                                                  if (v == 'edit')
+                                                    editPartner(x);
+                                                  if (v == 'delete')
+                                                    deletePartner(x);
+                                                },
+                                                itemBuilder: (_) => [
+  const PopupMenuItem(value: 'edit', child: Text('تعديل بيانات الشريك')),
+  if (widget.manager)
+    const PopupMenuItem(value: 'delete', child: Text('حذف')),
+],
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            x['ownership_mode'] == 'percentage'
+                                                ? 'نسبة ملكية ${x['ownership_percentage'] ?? 0}%'
+                                                : 'عدد حصص ${x['shares_count'] ?? 0}',
+                                            style: TextStyle(
+                                              color: Theme.of(
+                                                c,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            AccountingCalculations.partyDueLabel(
+  ((x['balance'] as num?)?.round() ?? 0),
+),
+style: TextStyle(
+  fontWeight: FontWeight.w900,
+  color: ((x['balance'] as num?)?.round() ?? 0) < 0
+      ? Colors.red
+      : _green,
+),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () => share(x),
+                                                  icon: const Icon(
+                                                    Icons.add_chart,
+                                                  ),
+                                                  label: const Text('استحقاق'),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () => pay(x),
+                                                  icon: const Icon(
+                                                    Icons.payments,
+                                                  ),
+                                                  label: const Text('دفع'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
+}
+
+// ───────────────────────── دفتر اليومية والأستاذ العام ─────────────────────────
+
+/// تاريخ للعرض: «yyyy/MM/dd HH:mm» إن وُجد وقت، وإلا «yyyy/MM/dd».
+String _fmtLedgerDate(Object? raw) {
+  final text = '${raw ?? ''}';
+  final d = DateTime.tryParse(text);
+  if (d == null) return text.isEmpty ? '-' : text;
+  return text.length > 10
+      ? DateFormat('yyyy/MM/dd HH:mm').format(d)
+      : DateFormat('yyyy/MM/dd').format(d);
+}
+
+/// رصيد الأستاذ = مدين − دائن: الموجب مدين والسالب دائن.
+String _drLabel(int n) => n > 0
+    ? 'مدين ${money(n)}'
+    : n < 0
+    ? 'دائن ${money(n.abs())}'
+    : money(0);
+
+/// اسم عربي لمرجع القيد (نوع العملية الأصلية ورقمها).
+String _refLabel(Object? type, Object? id) {
+  final t = '${type ?? ''}';
+  if (t.isEmpty) return '';
+  final name = switch (t) {
+    'irrigation' => 'سقاية',
+    'irrigation_cancel' => 'إلغاء سقاية',
+    'payment' => 'دفعة',
+    'payment_cancel' => 'إلغاء دفعة',
+    'expense' => 'مصروف',
+    'cashbox_opening' => 'رصيد افتتاحي لصندوق',
+    'cashbox_transfer' => 'تحويل بين الصناديق',
+    'diesel' => 'تسليم ديزل',
+    'diesel_advance' => 'سلفة ديزل',
+    'diesel_consumption' => 'استهلاك ديزل',
+    'diesel_receipt' => 'شراء ديزل',
+    'worker' => 'استحقاق عامل',
+    'partner' => 'حصة شريك',
+    'beneficiary_opening' => 'رصيد افتتاحي لمستفيد',
+    'beneficiary_carried' => 'رصيد مرحّل لمستفيد',
+    'worker_opening' => 'رصيد افتتاحي لعامل',
+    'partner_opening' => 'رصيد افتتاحي لشريك',
+    'reversal' => 'قيد عكسي',
+    _ => t,
+  };
+  return id == null ? name : '$name #$id';
+}
+
+void _openJournalEntry(BuildContext c, StationRepository r, Map<String, Object?> x) {
+  final id = x['journal_id'] ?? x['id'];
+  if (id is! int) return;
+  Navigator.push(
+    c,
+    MaterialPageRoute(
+      builder: (_) => RecordDetailsPage(
+        r,
+        kind: 'journal',
+        id: id,
+        title: 'تفاصيل القيد المحاسبي',
+      ),
+    ),
+  );
+}
+
+/// يفتح صفحة الطرف (مستفيد/عامل/شريك) المرتبط بسطر القيد.
+void _openLedgerParty(BuildContext c, StationRepository r, Map<String, Object?> x) {
+  final (kind, id) = x['beneficiary_id'] is int
+      ? ('beneficiary', x['beneficiary_id'] as int)
+      : x['worker_id'] is int
+      ? ('worker', x['worker_id'] as int)
+      : x['partner_id'] is int
+      ? ('partner', x['partner_id'] as int)
+      : ('', 0);
+  if (kind.isEmpty) return;
+  Navigator.push(
+    c,
+    MaterialPageRoute(
+      builder: (_) => RecordDetailsPage(
+        r,
+        kind: kind,
+        id: id,
+        title: '${x['party_name'] ?? ''}',
+      ),
+    ),
+  );
+}
+
+class _DateRangeBar extends StatelessWidget {
+  final DateTime? from, to;
+  final ValueChanged<DateTime> onFrom, onTo;
+  final VoidCallback onClear;
+  const _DateRangeBar({
+    required this.from,
+    required this.to,
+    required this.onFrom,
+    required this.onTo,
+    required this.onClear,
+  });
+
+  Future<void> _pick(BuildContext c, DateTime? cur, ValueChanged<DateTime> cb) async {
+    final d = await showDatePicker(
+      context: c,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDate: cur ?? AppClock.now(),
+      locale: const Locale('ar'),
+    );
+    if (d != null) cb(d);
+  }
+
+  @override
+  Widget build(BuildContext c) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      OutlinedButton.icon(
+        onPressed: () => _pick(c, from, onFrom),
+        icon: const Icon(Icons.date_range),
+        label: Text(
+          from == null ? 'من تاريخ' : 'من ${DateFormat('yyyy/MM/dd').format(from!)}',
+        ),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _pick(c, to, onTo),
+        icon: const Icon(Icons.event),
+        label: Text(
+          to == null ? 'إلى تاريخ' : 'إلى ${DateFormat('yyyy/MM/dd').format(to!)}',
+        ),
+      ),
+      if (from != null || to != null)
+        TextButton.icon(
+          onPressed: onClear,
+          icon: const Icon(Icons.clear),
+          label: const Text('مسح التواريخ'),
+        ),
+    ],
+  );
 }
 
 class JournalPage extends StatefulWidget {
@@ -5470,10 +7827,33 @@ class JournalPage extends StatefulWidget {
 }
 
 class _JournalState extends State<JournalPage> {
-  List<Map<String, Object?>> rows = [];
+  List<Map<String, Object?>> lines = [];
+  DateTime? from, to;
+  String search = '';
+  bool loading = true;
+  String? error;
+  int _seq = 0;
+
   Future<void> load() async {
-    final x = await widget.r.journal();
-    if (mounted) setState(() => rows = x);
+    final seq = ++_seq;
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final x = await widget.r.journal(from: from, to: to);
+      if (!mounted || seq != _seq) return;
+      setState(() {
+        lines = x;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted || seq != _seq) return;
+      setState(() {
+        error = friendlyError(e);
+        loading = false;
+      });
+    }
   }
 
   @override
@@ -5482,8 +7862,137 @@ class _JournalState extends State<JournalPage> {
     load();
   }
 
+  /// يجمع أسطر القيد الواحد في بطاقة واحدة (الأحدث أولًا).
+  List<List<Map<String, Object?>>> get entries {
+    final byId = <Object?, List<Map<String, Object?>>>{};
+    for (final l in lines) {
+      byId.putIfAbsent(l['journal_id'], () => []).add(l);
+    }
+    final q = search.trim();
+    final out = byId.values.where((g) {
+      if (q.isEmpty) return true;
+      return g.any(
+        (l) =>
+            '${l['description']} ${l['account_code']} ${l['account_name']} ${l['party_name'] ?? ''} ${l['memo'] ?? ''} ${_refLabel(l['reference_type'], l['reference_id'])}'
+                .contains(q),
+      );
+    }).toList();
+    return out.reversed.toList();
+  }
+
+  Widget entryCard(BuildContext c, List<Map<String, Object?>> g) {
+    final head = g.first;
+    final totalDebit = g.fold<int>(0, (s, l) => s + ((l['debit'] as num?)?.round() ?? 0));
+    final ref = _refLabel(head['reference_type'], head['reference_id']);
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _openJournalEntry(c, widget.r, head),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${head['description']}',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text(
+                    _fmtLedgerDate(head['date']),
+                    style: TextStyle(
+                      color: Theme.of(c).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              if (ref.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'المرجع: $ref • قيد #${head['journal_id']}',
+                    style: TextStyle(
+                      color: Theme.of(c).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              const Divider(height: 18),
+              Row(
+                children: [
+                  const Expanded(
+                    flex: 5,
+                    child: Text('الحساب', style: TextStyle(fontWeight: FontWeight.w800)),
+                  ),
+                  const Expanded(
+                    flex: 2,
+                    child: Text(
+                      'مدين',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const Expanded(
+                    flex: 2,
+                    child: Text(
+                      'دائن',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+              for (final l in g)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Text(
+                          '${l['account_code']} • ${l['account_name']}'
+                          '${l['party_name'] != null ? ' • ${l['party_name']}' : ''}',
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          ((l['debit'] as num?)?.round() ?? 0) > 0 ? money(l['debit']) : '',
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          ((l['credit'] as num?)?.round() ?? 0) > 0 ? money(l['credit']) : '',
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 4),
+              Text(
+                'إجمالي القيد: ${money(totalDebit)} (مدين = دائن)',
+                style: TextStyle(
+                  color: Theme.of(c).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext c) {
+    final list = loading || error != null ? <List<Map<String, Object?>>>[] : entries;
     return PageFrame(
       title: 'دفتر اليومية',
       subtitle: 'كل القيود المحاسبية المتوازنة المرتبطة بالعمليات',
@@ -5494,33 +8003,51 @@ class _JournalState extends State<JournalPage> {
           label: const Text('تحديث'),
         ),
       ],
-      child: rows.isEmpty
-          ? const EmptyView('لا توجد قيود')
-          : ListView(
-              children: [
-                for (final x in rows)
-                  Card(
-                    child: ListTile(
-                      onTap: () => Navigator.push(
-                        c,
-                        MaterialPageRoute(
-                          builder: (_) => RecordDetailsPage(
-                            widget.r,
-                            kind: 'journal',
-                            id: x['journal_id'] as int,
-                            title: 'تفاصيل القيد المحاسبي',
-                          ),
-                        ),
-                      ),
-                      title: Text('${x['description']}'),
-                      subtitle: Text(
-                        '${x['date']} • ${x['account_code']} ${x['account_name']}',
-                      ),
-                      trailing: Text('مدين ${x['debit']}\nدائن ${x['credit']}'),
-                    ),
-                  ),
-              ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _DateRangeBar(
+            from: from,
+            to: to,
+            onFrom: (d) {
+              from = d;
+              if (to != null && d.isAfter(to!)) to = null;
+              load();
+            },
+            onTo: (d) {
+              to = d;
+              if (from != null && d.isBefore(from!)) from = null;
+              load();
+            },
+            onClear: () {
+              from = null;
+              to = null;
+              load();
+            },
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            onChanged: (v) => setState(() => search = v),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              labelText: 'بحث بالبيان أو الحساب أو الطرف أو المرجع',
             ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: loading
+                ? const LoadingView()
+                : error != null
+                ? ErrorBox('تعذر تحميل القيود:\n$error')
+                : list.isEmpty
+                ? const EmptyView('لا توجد قيود مطابقة')
+                : ListView.builder(
+                    itemCount: list.length,
+                    itemBuilder: (_, i) => entryCard(c, list[i]),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -5534,72 +8061,205 @@ class LedgerPage extends StatefulWidget {
 
 class _LedgerState extends State<LedgerPage> {
   String code = '1000';
+  List<Map<String, Object?>> accounts = [];
   List<Map<String, Object?>> rows = [];
-  final accounts = const {
-    '1000': 'الصندوق',
-    '1100': 'التحويلات',
-    '1200': 'ذمم المستفيدين',
-    '1300': 'مخزون الديزل',
-    '2100': 'مستحقات العمال',
-    '2200': 'مستحقات الشركاء',
-    '4000': 'إيرادات السقي',
-    '4010': 'إيرادات الديزل',
-    '5000': 'مصروف العمال',
-    '5010': 'مصروف الوقود',
-    '5020': 'الزيت والشحم',
-    '5030': 'الصيانة',
-  };
-  Future<void> load() async {
-    final x = await widget.r.ledger(code);
-    if (mounted) setState(() => rows = x);
-  }
+  int opening = 0, totalDebit = 0, totalCredit = 0, closing = 0;
+  DateTime? from, to;
+  bool loading = true;
+  String? error;
+  int _seq = 0;
 
   @override
   void initState() {
     super.initState();
-    load();
+    _init();
+  }
+
+  /// قائمة الحسابات من جدول accounts (لا قائمة ثابتة في الكود).
+  Future<void> _init() async {
+    try {
+      final a = await widget.r.accounts();
+      if (!mounted) return;
+      setState(() {
+        accounts = a;
+        if (a.isNotEmpty && !a.any((x) => x['code'] == code)) {
+          code = '${a.first['code']}';
+        }
+      });
+    } catch (e) {
+      if (mounted) setState(() => error = friendlyError(e));
+    }
+    await load();
+  }
+
+  Future<void> load() async {
+    // رقم الطلب يتجاهل أي استجابة قديمة عند التبديل السريع بين الحسابات/التواريخ.
+    final seq = ++_seq;
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final st = await widget.r.ledgerStatement(code, from: from, to: to);
+      if (!mounted || seq != _seq) return;
+      setState(() {
+        rows = (st['rows'] as List).cast<Map<String, Object?>>();
+        opening = st['opening'] as int;
+        totalDebit = st['total_debit'] as int;
+        totalCredit = st['total_credit'] as int;
+        closing = st['closing'] as int;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted || seq != _seq) return;
+      setState(() {
+        error = friendlyError(e);
+        rows = [];
+        loading = false;
+      });
+    }
+  }
+
+  Widget rowCard(BuildContext c, Map<String, Object?> x) {
+    final ref = _refLabel(x['reference_type'], x['reference_id']);
+    final memo = '${x['memo'] ?? ''}'.trim();
+    final muted = TextStyle(
+      color: Theme.of(c).colorScheme.onSurfaceVariant,
+      fontSize: 12,
+    );
+    final d = (x['debit'] as num?)?.round() ?? 0;
+    final cr = (x['credit'] as num?)?.round() ?? 0;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _openJournalEntry(c, widget.r, x),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${x['description']}',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text(_fmtLedgerDate(x['date']), style: muted),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (x['party_name'] != null)
+                    ActionChip(
+                      avatar: const Icon(Icons.person_outline, size: 16),
+                      label: Text('${x['party_name']}'),
+                      onPressed: () => _openLedgerParty(c, widget.r, x),
+                    ),
+                  if (ref.isNotEmpty) Text('المرجع: $ref', style: muted),
+                  if (memo.isNotEmpty) Text(memo, style: muted),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 18,
+                runSpacing: 4,
+                children: [
+                  Text('مدين ${d > 0 ? money(d) : '—'}'),
+                  Text('دائن ${cr > 0 ? money(cr) : '—'}'),
+                  Text(
+                    'الرصيد: ${_drLabel((x['balance'] as num?)?.round() ?? 0)}',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext c) {
+    final hasCode = accounts.any((x) => x['code'] == code);
     return PageFrame(
       title: 'الأستاذ العام',
-      subtitle: 'حساب مستقل لكل رمز مع المدين والدائن',
+      subtitle: 'حساب مستقل لكل رمز مع المدين والدائن والرصيد الجاري',
+      actions: [
+        OutlinedButton.icon(
+          onPressed: load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('تحديث'),
+        ),
+      ],
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DropdownButtonFormField<String>(
-            value: code,
+            value: hasCode ? code : null,
+            isExpanded: true,
             items: [
-              for (final e in accounts.entries)
+              for (final a in accounts)
                 DropdownMenuItem(
-                  value: e.key,
-                  child: Text('${e.key} • ${e.value}'),
+                  value: '${a['code']}',
+                  child: Text('${a['code']} • ${a['name']}'),
                 ),
             ],
             onChanged: (v) {
-              if (v != null) {
-                code = v;
-                load();
-              }
+              if (v == null || v == code) return;
+              setState(() => code = v);
+              load();
             },
             decoration: const InputDecoration(labelText: 'الحساب'),
           ),
+          const SizedBox(height: 8),
+          _DateRangeBar(
+            from: from,
+            to: to,
+            onFrom: (d) {
+              from = d;
+              if (to != null && d.isAfter(to!)) to = null;
+              load();
+            },
+            onTo: (d) {
+              to = d;
+              if (from != null && d.isBefore(from!)) from = null;
+              load();
+            },
+            onClear: () {
+              from = null;
+              to = null;
+              load();
+            },
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              Metric('رصيد أول المدة', _drLabel(opening), _blue),
+              Metric('إجمالي المدين', money(totalDebit), _purple),
+              Metric('إجمالي الدائن', money(totalCredit), _cyan),
+              Metric('الرصيد الختامي', _drLabel(closing), _green),
+            ],
+          ),
+          const SizedBox(height: 10),
           Expanded(
-            child: rows.isEmpty
-                ? const EmptyView('لا توجد حركات لهذا الحساب')
-                : ListView(
-                    children: [
-                      for (final x in rows)
-                        Card(
-                          child: ListTile(
-                            title: Text('${x['description']}'),
-                            subtitle: Text('${x['date']} • ${x['memo'] ?? ''}'),
-                            trailing: Text(
-                              'مدين ${x['debit']} / دائن ${x['credit']}',
-                            ),
-                          ),
-                        ),
-                    ],
+            child: loading
+                ? const LoadingView()
+                : error != null
+                ? ErrorBox('تعذر تحميل الأستاذ:\n$error')
+                : rows.isEmpty
+                ? const EmptyView('لا توجد حركات لهذا الحساب في الفترة المحددة')
+                : ListView.builder(
+                    itemCount: rows.length,
+                    itemBuilder: (_, i) => rowCard(c, rows[i]),
                   ),
           ),
         ],
@@ -5656,9 +8316,20 @@ class _ReportsState extends State<ReportsPage> {
     final today = DateTime(now.year, now.month, now.day);
     return [
       ('اليوم', today, today),
-      ('هذا الأسبوع', PeriodRanges.weekStart(today, _cfg['week_start'] ?? 'saturday'), today),
+      (
+        'هذا الأسبوع',
+        PeriodRanges.weekStart(today, _cfg['week_start'] ?? 'saturday'),
+        today,
+      ),
       ('هذا الشهر', DateTime(now.year, now.month, 1), today),
-      ('السنة المالية', PeriodRanges.financialYearStart(today, _cfg['financial_year_start'] ?? '01-01'), today),
+      (
+        'السنة المالية',
+        PeriodRanges.financialYearStart(
+          today,
+          _cfg['financial_year_start'] ?? '01-01',
+        ),
+        today,
+      ),
     ];
   }
 
@@ -5693,37 +8364,45 @@ class _ReportsState extends State<ReportsPage> {
     if (currentType == 'solar' && k == 'diesel_inventory') return;
     try {
       final rows = await widget.r.report(
-      k,
-      from: from,
-      to: to,
-      beneficiaryId: bid,
-      workerId: wid,
-      partnerId: pid,
-      systemType: type,
-      cashboxId: cid,
-      paymentMethodId: mid,
-      category: category,
-      status: status,
+        k,
+        from: from,
+        to: to,
+        beneficiaryId: bid,
+        workerId: wid,
+        partnerId: pid,
+        systemType: type,
+        cashboxId: cid,
+        paymentMethodId: mid,
+        category: category,
+        status: status,
       );
       if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ReportPreviewPage(
-          widget.r,
-          keyName: k,
-          rows: rows,
-          filters: '${from ?? ''} ${to ?? ''}',
-          from: from, to: to, beneficiaryId: bid, workerId: wid, partnerId: pid,
-          cashboxId: cid, paymentMethodId: mid, systemType: type, category: category, status: status,
-        ),
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReportPreviewPage(
+            widget.r,
+            keyName: k,
+            rows: rows,
+            filters: '${from ?? ''} ${to ?? ''}',
+            from: from,
+            to: to,
+            beneficiaryId: bid,
+            workerId: wid,
+            partnerId: pid,
+            cashboxId: cid,
+            paymentMethodId: mid,
+            systemType: type,
+            category: category,
+            status: status,
+          ),
         ),
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر إنشاء التقرير: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('تعذر إنشاء التقرير: $e')));
       }
     }
   }
@@ -5824,9 +8503,15 @@ class _ReportsState extends State<ReportsPage> {
               ),
               sel<String>('نوع المنظومة', type, [
                 const DropdownMenuItem(value: 'all', child: Text('كل الأنواع')),
-                if (currentType == 'diesel') const DropdownMenuItem(value: 'diesel', child: Text('ديزل')),
-                if (currentType == 'solar') const DropdownMenuItem(value: 'solar', child: Text('شمسي')),
-                if (currentType == 'equivalent_hybrid') const DropdownMenuItem(value: 'equivalent_hybrid', child: Text('النوع الثالث')),
+                if (currentType == 'diesel')
+                  const DropdownMenuItem(value: 'diesel', child: Text('ديزل')),
+                if (currentType == 'solar')
+                  const DropdownMenuItem(value: 'solar', child: Text('شمسي')),
+                if (currentType == 'equivalent_hybrid')
+                  const DropdownMenuItem(
+                    value: 'equivalent_hybrid',
+                    child: Text('النوع الثالث'),
+                  ),
               ], (v) => setState(() => type = v)),
               sel<int>('المستفيد', bid, [
                 const DropdownMenuItem(
@@ -5928,13 +8613,67 @@ class _ReportsState extends State<ReportsPage> {
 }
 
 String? reportFieldArabic(String key) => {
-  'id':'الرقم','date':'التاريخ','start_datetime':'بداية السقي','end_datetime':'نهاية السقي','minutes':'المدة بالدقائق','system_type':'نوع المنظومة','total_amount':'الإجمالي','paid_amount':'المدفوع','remaining':'حالة الرصيد','beneficiary_name':'المستفيد','party_name':'الجهة','cloud_status':'حالة خصم الغيم','worker_name':'العامل','partner_name':'الشريك','cashbox_name':'الصندوق','method_name':'طريقة الدفع','account_name':'الحساب','account_code':'رمز الحساب','debit':'مدين','credit':'دائن','amount':'المبلغ','liters':'اللترات','kind':'نوع الحركة','status':'الحالة','notes':'ملاحظات','description':'البيان','ownership_percentage':'نسبة الملكية','shares_count':'عدد الحصص','opening_balance':'الرصيد الافتتاحي','carried_balance':'الرصيد المرحل','balance':'حالة الرصيد','water_amount':'قيمة المياه','diesel_amount':'قيمة الديزل','cloud_minutes':'دقائق الغيم','chargeable_minutes':'الدقائق المحاسبية','category':'التصنيف','title':'العنوان','phone':'الهاتف','name':'الاسم','reference_number':'رقم المرجع','created_at':'تاريخ الإنشاء','updated_at':'تاريخ التحديث','position':'الدور','scheduled_start':'بداية الموعد','scheduled_end':'نهاية الموعد','payment_method_id':'طريقة الدفع','cashbox_id':'الصندوق','beneficiary_id':'المستفيد','worker_id':'العامل','partner_id':'الشريك','journal_id':'رقم القيد','journal_entry_id':'رقم القيد','ownership_mode':'طريقة الملكية',}[key];
+  'id': 'الرقم',
+  'date': 'التاريخ',
+  'start_datetime': 'بداية السقي',
+  'end_datetime': 'نهاية السقي',
+  'minutes': 'المدة بالدقائق',
+  'system_type': 'نوع المنظومة',
+  'total_amount': 'الإجمالي',
+  'paid_amount': 'المدفوع',
+  'remaining': 'حالة الرصيد',
+  'beneficiary_name': 'المستفيد',
+  'party_name': 'الجهة',
+  'cloud_status': 'حالة خصم الغيم',
+  'worker_name': 'العامل',
+  'partner_name': 'الشريك',
+  'cashbox_name': 'الصندوق',
+  'method_name': 'طريقة الدفع',
+  'account_name': 'الحساب',
+  'account_code': 'رمز الحساب',
+  'debit': 'مدين',
+  'credit': 'دائن',
+  'amount': 'المبلغ',
+  'liters': 'اللترات',
+  'kind': 'نوع الحركة',
+  'status': 'الحالة',
+  'notes': 'ملاحظات',
+  'description': 'البيان',
+  'ownership_percentage': 'نسبة الملكية',
+  'shares_count': 'عدد الحصص',
+  'opening_balance': 'الرصيد الافتتاحي',
+  'carried_balance': 'الرصيد المرحل',
+  'balance': 'حالة الرصيد',
+  'water_amount': 'قيمة المياه',
+  'diesel_amount': 'قيمة الديزل',
+  'cloud_minutes': 'دقائق الغيم',
+  'chargeable_minutes': 'الدقائق المحاسبية',
+  'category': 'التصنيف',
+  'title': 'العنوان',
+  'phone': 'الهاتف',
+  'name': 'الاسم',
+  'reference_number': 'رقم المرجع',
+  'created_at': 'تاريخ الإنشاء',
+  'updated_at': 'تاريخ التحديث',
+  'position': 'الدور',
+  'scheduled_start': 'بداية الموعد',
+  'scheduled_end': 'نهاية الموعد',
+  'payment_method_id': 'طريقة الدفع',
+  'cashbox_id': 'الصندوق',
+  'beneficiary_id': 'المستفيد',
+  'worker_id': 'العامل',
+  'partner_id': 'الشريك',
+  'journal_id': 'رقم القيد',
+  'journal_entry_id': 'رقم القيد',
+  'ownership_mode': 'طريقة الملكية',
+}[key];
 String reportValueArabic(String key, Object? value) {
   if (value == null) return '-';
   if (key == 'system_type') return systemName('$value');
   if (key == 'status') return statusName(value);
   if (key == 'kind') return movementName('$value');
-  if (key == 'ownership_mode') return value == 'percentage' ? 'نسبة ملكية' : 'عدد حصص';
+  if (key == 'ownership_mode')
+    return value == 'percentage' ? 'نسبة ملكية' : 'عدد حصص';
   return '$value';
 }
 
@@ -5951,8 +8690,16 @@ class ReportPreviewPage extends StatelessWidget {
     required this.keyName,
     required this.rows,
     required this.filters,
-    this.from, this.to, this.beneficiaryId, this.workerId, this.partnerId,
-    this.cashboxId, this.paymentMethodId, this.systemType, this.category, this.status,
+    this.from,
+    this.to,
+    this.beneficiaryId,
+    this.workerId,
+    this.partnerId,
+    this.cashboxId,
+    this.paymentMethodId,
+    this.systemType,
+    this.category,
+    this.status,
     super.key,
   });
 
@@ -5967,7 +8714,19 @@ class ReportPreviewPage extends StatelessWidget {
           actions: [
             FilledButton.icon(
               onPressed: () async {
-                await ReportService(r).printPdf(keyName, from: from, to: to, beneficiaryId: beneficiaryId, workerId: workerId, partnerId: partnerId, cashboxId: cashboxId, paymentMethodId: paymentMethodId, systemType: systemType, category: category, status: status);
+                await ReportService(r).printPdf(
+                  keyName,
+                  from: from,
+                  to: to,
+                  beneficiaryId: beneficiaryId,
+                  workerId: workerId,
+                  partnerId: partnerId,
+                  cashboxId: cashboxId,
+                  paymentMethodId: paymentMethodId,
+                  systemType: systemType,
+                  category: category,
+                  status: status,
+                );
               },
               icon: const Icon(Icons.print),
               label: const Text('طباعة'),
@@ -6003,10 +8762,14 @@ class ReportPreviewPage extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              for (final e in x.entries.where((e) => reportFieldArabic(e.key) != null))
+                              for (final e in x.entries.where(
+                                (e) => reportFieldArabic(e.key) != null,
+                              ))
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 3),
-                                  child: Text('${reportFieldArabic(e.key)}: ${reportValueArabic(e.key, e.value)}'),
+                                  child: Text(
+                                    '${reportFieldArabic(e.key)}: ${reportValueArabic(e.key, e.value)}',
+                                  ),
                                 ),
                             ],
                           ),
@@ -6061,7 +8824,11 @@ class _NotificationsState extends State<NotificationsPage> {
                 Card(
                   child: ListTile(
                     onTap: () async {
-                      if (!await runGuarded(context, () => widget.r.markNotificationRead(x['id'] as int))) return;
+                      if (!await runGuarded(
+                        context,
+                        () => widget.r.markNotificationRead(x['id'] as int),
+                      ))
+                        return;
                       load();
                     },
                     leading: Icon(
@@ -6071,12 +8838,21 @@ class _NotificationsState extends State<NotificationsPage> {
                       color: x['read_at'] == null ? _cyan : null,
                     ),
                     title: Text('${x['title']}'),
-                    subtitle: Text('${x['body']}\n${x['created_at']}${snoozeNote(x)}'),
+                    subtitle: Text(
+                      '${x['body']}\n${x['created_at']}${snoozeNote(x)}',
+                    ),
                     trailing: PopupMenuButton<int>(
                       tooltip: 'تأجيل التنبيه',
                       icon: const Icon(Icons.snooze_rounded),
                       onSelected: (m) async {
-                        if (!await runGuarded(context, () => widget.r.snoozeNotification(x['id'] as int, minutes: m))) return;
+                        if (!await runGuarded(
+                          context,
+                          () => widget.r.snoozeNotification(
+                            x['id'] as int,
+                            minutes: m,
+                          ),
+                        ))
+                          return;
                         await load();
                       },
                       itemBuilder: (_) => const [
@@ -6096,7 +8872,12 @@ class SettingsPage extends StatefulWidget {
   final StationRepository r;
   final int userId;
   final ValueChanged<String>? onSystemTypeChanged;
-  const SettingsPage(this.r, {required this.userId, this.onSystemTypeChanged, super.key});
+  const SettingsPage(
+    this.r, {
+    required this.userId,
+    this.onSystemTypeChanged,
+    super.key,
+  });
   @override
   State<SettingsPage> createState() => _SettingsState();
 }
@@ -6117,7 +8898,12 @@ class _SettingsState extends State<SettingsPage> {
     load();
   }
 
-  Future<void> edit(String key, String label, {bool numeric = false, String? preset}) async {
+  Future<void> edit(
+    String key,
+    String label, {
+    bool numeric = false,
+    String? preset,
+  }) async {
     final c = TextEditingController(text: preset ?? s[key] ?? '');
     final ok = await showDialog<bool>(
       context: context,
@@ -6134,19 +8920,24 @@ class _SettingsState extends State<SettingsPage> {
       ),
     );
     if (ok == true) {
-      if (key == 'financial_year_start' && !PeriodRanges.validFinancialYearStart(c.text)) {
+      if (key == 'financial_year_start' &&
+          !PeriodRanges.validFinancialYearStart(c.text)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('الصيغة المطلوبة: شهر-يوم مثل 01-01 أو 07-01')),
+            const SnackBar(
+              content: Text('الصيغة المطلوبة: شهر-يوم مثل 01-01 أو 07-01'),
+            ),
           );
         }
         return;
       }
       if (key == 'system_type') {
-        if (!await runGuarded(context, () => widget.r.setSystemType(c.text))) return;
+        if (!await runGuarded(context, () => widget.r.setSystemType(c.text)))
+          return;
         widget.onSystemTypeChanged?.call(c.text);
       } else {
-        if (!await runGuarded(context, () => widget.r.setSetting(key, c.text))) return;
+        if (!await runGuarded(context, () => widget.r.setSetting(key, c.text)))
+          return;
       }
       await load();
     }
@@ -6190,8 +8981,11 @@ class _SettingsState extends State<SettingsPage> {
   Future<void> close() async {
     try {
       await AdminService(widget.r.db).closePeriod(
-        stationId: 1,
-        start: PeriodRanges.financialYearStart(AppClock.now(), s['financial_year_start'] ?? '01-01'),
+        stationId: await widget.r.accounting.currentStationId(),
+        start: PeriodRanges.financialYearStart(
+          AppClock.now(),
+          s['financial_year_start'] ?? '01-01',
+        ),
         end: AppClock.now(),
         userId: widget.userId,
         notes: 'إغلاق من الإعدادات',
@@ -6213,18 +9007,27 @@ class _SettingsState extends State<SettingsPage> {
     subtitle: Text(s['pump_name'] ?? 'غير محددة'),
     trailing: const Icon(Icons.arrow_drop_down),
     onTap: () async {
-      final pumps = await widget.r.db.query('pumps', where: 'active=1', orderBy: 'id');
+      final pumps = await widget.r.db.query(
+        'pumps',
+        where: 'active=1',
+        orderBy: 'id',
+      );
       if (!mounted) return;
-      final v = await showDialog<int>(context: context, builder: (d) => SimpleDialog(
-        title: const Text('اختيار المضخة المستخدمة'),
-        children: [
-          for (final p in pumps)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(d, p['id'] as int),
-              child: Text('${p['name']} • ${systemName('${p['system_type']}')}'),
-            ),
-        ],
-      ));
+      final v = await showDialog<int>(
+        context: context,
+        builder: (d) => SimpleDialog(
+          title: const Text('اختيار المضخة المستخدمة'),
+          children: [
+            for (final p in pumps)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(d, p['id'] as int),
+                child: Text(
+                  '${p['name']} • ${systemName('${p['system_type']}')}',
+                ),
+              ),
+          ],
+        ),
+      );
       if (v != null) {
         if (!await runGuarded(context, () => widget.r.selectPump(v))) return;
         await load();
@@ -6240,17 +9043,53 @@ class _SettingsState extends State<SettingsPage> {
     onTap: () => edit(k, label, numeric: n),
   );
   Widget boolTile(String k, String label) => SwitchListTile.adaptive(
-    title: Text(label), value: (s[k] ?? 'false') == 'true',
-    onChanged: (v) async { if (!await runGuarded(context, () => widget.r.setSetting(k, v ? 'true' : 'false'))) return; await load(); },
-    secondary: const Icon(Icons.toggle_on_outlined), contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+    title: Text(label),
+    value: (s[k] ?? 'false') == 'true',
+    onChanged: (v) async {
+      if (!await runGuarded(
+        context,
+        () => widget.r.setSetting(k, v ? 'true' : 'false'),
+      ))
+        return;
+      await load();
+    },
+    secondary: const Icon(Icons.toggle_on_outlined),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
   );
-  Widget dropdownTile(String k, String label, List<MapEntry<String,String>> options) => ListTile(
-    title: Text(label), subtitle: Text(settingDisplay(k, s[k] ?? 'غير مضبوط')),
+  Widget dropdownTile(
+    String k,
+    String label,
+    List<MapEntry<String, String>> options,
+  ) => ListTile(
+    title: Text(label),
+    subtitle: Text(settingDisplay(k, s[k] ?? 'غير مضبوط')),
     trailing: const Icon(Icons.keyboard_arrow_down_rounded),
     onTap: () async {
-      final current=s[k];
-      final v=await showDialog<String>(context:context,builder:(d)=>SimpleDialog(title:Text(label),children:[for(final o in options)SimpleDialogOption(onPressed:()=>Navigator.pop(d,o.key),child:Row(children:[if(o.key==current)const Icon(Icons.check_rounded,size:18),const SizedBox(width:8),Text(o.value)]))]));
-      if(v!=null){if (!await runGuarded(context, () => widget.r.setSetting(k,v))) return;await load();}
+      final current = s[k];
+      final v = await showDialog<String>(
+        context: context,
+        builder: (d) => SimpleDialog(
+          title: Text(label),
+          children: [
+            for (final o in options)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(d, o.key),
+                child: Row(
+                  children: [
+                    if (o.key == current)
+                      const Icon(Icons.check_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    Text(o.value),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+      if (v != null) {
+        if (!await runGuarded(context, () => widget.r.setSetting(k, v))) return;
+        await load();
+      }
     },
   );
 
@@ -6292,33 +9131,64 @@ class _SettingsState extends State<SettingsPage> {
             children: [
               ListTile(
                 title: const Text('نوع المنظومة'),
-                subtitle: Text(settingDisplay('system_type', s['system_type'] ?? 'diesel')),
+                subtitle: Text(
+                  settingDisplay('system_type', s['system_type'] ?? 'diesel'),
+                ),
                 trailing: const Icon(Icons.arrow_drop_down),
                 onTap: () async {
-                  final v = await showDialog<String>(context: c, builder: (d) => SimpleDialog(
-                    title: const Text('اختيار نوع المنظومة'),
-                    children: [
-                      SimpleDialogOption(onPressed: () => Navigator.pop(d, 'diesel'), child: const Text('ديزل')),
-                      SimpleDialogOption(onPressed: () => Navigator.pop(d, 'solar'), child: const Text('شمسي')),
-                      SimpleDialogOption(onPressed: () => Navigator.pop(d, 'equivalent_hybrid'), child: const Text('النوع الثالث')),
-                    ],
-                  ));
+                  final v = await showDialog<String>(
+                    context: c,
+                    builder: (d) => SimpleDialog(
+                      title: const Text('اختيار نوع المنظومة'),
+                      children: [
+                        SimpleDialogOption(
+                          onPressed: () => Navigator.pop(d, 'diesel'),
+                          child: const Text('ديزل'),
+                        ),
+                        SimpleDialogOption(
+                          onPressed: () => Navigator.pop(d, 'solar'),
+                          child: const Text('شمسي'),
+                        ),
+                        SimpleDialogOption(
+                          onPressed: () =>
+                              Navigator.pop(d, 'equivalent_hybrid'),
+                          child: const Text('النوع الثالث'),
+                        ),
+                      ],
+                    ),
+                  );
                   if (v != null) {
-                    if (!await runGuarded(context, () => widget.r.setSystemType(v))) return;
+                    if (!await runGuarded(
+                      context,
+                      () => widget.r.setSystemType(v),
+                    ))
+                      return;
                     widget.onSystemTypeChanged?.call(v);
                     await load();
                   }
                 },
               ),
               if ((s['system_type'] ?? 'diesel') == 'diesel') ...[
-                setTile('diesel_hourly_water_rate', 'سعر مياه الديزل بالساعة', true),
-                setTile('diesel_liters_per_hour', 'لترات الديزل في الساعة', true),
+                setTile(
+                  'diesel_hourly_water_rate',
+                  'سعر مياه الديزل بالساعة',
+                  true,
+                ),
+                setTile(
+                  'diesel_liters_per_hour',
+                  'لترات الديزل في الساعة',
+                  true,
+                ),
                 setTile('diesel_price_per_liter', 'سعر لتر الديزل', true),
               ],
               if ((s['system_type'] ?? 'diesel') == 'solar')
                 setTile('solar_hourly_rate', 'سعر السقي الشمسي بالساعة', true),
               if ((s['system_type'] ?? 'diesel') == 'equivalent_hybrid')
-                setTile('third_type_hourly_rate', 'سعر النوع الثالث بالساعة', true),
+                setTile(
+                  'third_type_hourly_rate',
+                  'سعر النوع الثالث بالساعة',
+                  true,
+                ),
               setTile('partial_hour', 'محاسبة الجزء من الساعة'),
               setTile('rounding', 'سياسة التقريب'),
             ],
@@ -6326,15 +9196,33 @@ class _SettingsState extends State<SettingsPage> {
           SettingGroup(
             title: 'الطابور والجلسات',
             children: [
-              dropdownTile('queue_type', 'نمط التشغيل', const [MapEntry('circular','طابور دائري'),MapEntry('booking','نظام حجز')]),
-              dropdownTile('time_source', 'مصدر الوقت', const [MapEntry('device','وقت الجهاز'),MapEntry('server','وقت الخادم')]),
+              dropdownTile('queue_type', 'نمط التشغيل', const [
+                MapEntry('circular', 'طابور دائري'),
+                MapEntry('booking', 'نظام حجز'),
+              ]),
+              dropdownTile('time_source', 'مصدر الوقت', const [
+                MapEntry('device', 'وقت الجهاز'),
+                MapEntry('server', 'وقت الخادم'),
+              ]),
               if ((s['time_source'] ?? 'device') == 'server')
                 setTile('server_url', 'عنوان الخادم (لمزامنة الوقت)'),
-              dropdownTile('week_start', 'بداية الأسبوع', const [MapEntry('saturday','السبت'),MapEntry('sunday','الأحد'),MapEntry('monday','الاثنين'),MapEntry('tuesday','الثلاثاء'),MapEntry('wednesday','الأربعاء'),MapEntry('thursday','الخميس'),MapEntry('friday','الجمعة')]),
+              dropdownTile('week_start', 'بداية الأسبوع', const [
+                MapEntry('saturday', 'السبت'),
+                MapEntry('sunday', 'الأحد'),
+                MapEntry('monday', 'الاثنين'),
+                MapEntry('tuesday', 'الثلاثاء'),
+                MapEntry('wednesday', 'الأربعاء'),
+                MapEntry('thursday', 'الخميس'),
+                MapEntry('friday', 'الجمعة'),
+              ]),
               setTile('financial_year_start', 'بداية السنة المالية (شهر-يوم)'),
               setTile('min_wait_days', 'الحد الأدنى لأيام الانتظار', true),
               boolTile('manager_override_required', 'اشتراط تجاوز المدير'),
-              dropdownTile('absence_policy', 'سياسة الغياب', const [MapEntry('keep_order','إبقاء الدور'),MapEntry('postpone','نقل لآخر الدور'),MapEntry('cancel','إزالة من الدور')]),
+              dropdownTile('absence_policy', 'سياسة الغياب', const [
+                MapEntry('keep_order', 'إبقاء الدور'),
+                MapEntry('postpone', 'نقل لآخر الدور'),
+                MapEntry('cancel', 'إزالة من الدور'),
+              ]),
               boolTile('allow_midnight_crossing', 'السماح بعبور منتصف الليل'),
             ],
           ),
@@ -6343,7 +9231,21 @@ class _SettingsState extends State<SettingsPage> {
             children: [
               boolTile('sound_notifications', 'التنبيهات الصوتية'),
               boolTile('popup_notifications', 'النوافذ المنبثقة'),
-              FilledButton.tonalIcon(onPressed: () async { final ok=await DeviceNotificationSettings.open(); if(!ok&&mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('إعدادات إشعارات الجهاز متاحة على أندرويد من زر الإشعارات في إعدادات التطبيق.'))); }, icon: const Icon(Icons.notifications_active_outlined), label: const Text('إدارة إشعارات التطبيق من إعدادات الجهاز')),
+              FilledButton.tonalIcon(
+                onPressed: () async {
+                  final ok = await DeviceNotificationSettings.open();
+                  if (!ok && mounted)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'إعدادات إشعارات الجهاز متاحة على أندرويد من زر الإشعارات في إعدادات التطبيق.',
+                        ),
+                      ),
+                    );
+                },
+                icon: const Icon(Icons.notifications_active_outlined),
+                label: const Text('إدارة إشعارات التطبيق من إعدادات الجهاز'),
+              ),
               setTile('notification_appointment_title', 'عنوان إشعار الموعد'),
               setTile('notification_appointment_body', 'نص إشعار الموعد'),
               setTile('notification_payment_title', 'عنوان إشعار الدفع'),
@@ -6357,7 +9259,11 @@ class _SettingsState extends State<SettingsPage> {
             children: [
               if ((s['system_type'] ?? 'diesel') == 'diesel') ...[
                 setTile('diesel_warning_percent', 'نسبة تنبيه الديزل', true),
-                setTile('diesel_snooze_minutes', 'مدة تأجيل تنبيه الديزل بالدقائق', true),
+                setTile(
+                  'diesel_snooze_minutes',
+                  'مدة تأجيل تنبيه الديزل بالدقائق',
+                  true,
+                ),
               ],
               setTile('pdf_rows', 'عدد الصفوف الافتراضي في التقرير', true),
               boolTile('reduced_motion', 'تقليل الحركة'),
@@ -6459,9 +9365,7 @@ class _PerformanceState extends State<PerformancePage> {
                   children: [
                     for (final x in metrics)
                       ListTile(
-                        title: Text(
-                          'فتح الشاشة: ${x['screen'] ?? '-'}',
-                        ),
+                        title: Text('فتح الشاشة: ${x['screen'] ?? '-'}'),
                         subtitle: Text(
                           '${x['opened_at'] ?? '-'} • استعلام ${x['query_ms'] ?? 0} مللي ثانية',
                         ),
@@ -6550,14 +9454,22 @@ class _BackupState extends State<BackupPage> {
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: busy ? null : () async {
-                  setState(() => busy = true);
-                  try {
-                    final path = await BackupService(widget.r.accounting).saveBackupToLocation();
-                    if (path != null) msg('تم حفظ النسخة الاحتياطية بنجاح');
-                  } catch (e) { msg(friendlyError(e)); }
-                  finally { if (mounted) setState(() => busy = false); }
-                },
+                onPressed: busy
+                    ? null
+                    : () async {
+                        setState(() => busy = true);
+                        try {
+                          final path = await BackupService(
+                            widget.r.accounting,
+                          ).saveBackupToLocation();
+                          if (path != null)
+                            msg('تم حفظ النسخة الاحتياطية بنجاح');
+                        } catch (e) {
+                          msg(friendlyError(e));
+                        } finally {
+                          if (mounted) setState(() => busy = false);
+                        }
+                      },
                 icon: const Icon(Icons.save_alt),
                 label: const Text('حفظ نسخة'),
               ),

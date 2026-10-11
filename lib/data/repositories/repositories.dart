@@ -788,11 +788,62 @@ class StationRepository {
       ORDER BY i.start_datetime DESC''', args: [id]);
   }
 
-  Future<List<Map<String, Object?>>> workerTransactions(int id) => db.query(
-    'SELECT * FROM worker_transactions WHERE worker_id=? ORDER BY date DESC,id DESC', args: [id]);
+  /// حركات العامل (الأحدث أولًا) مع المبلغ الموقّع والرصيد الجاري بعد كل حركة
+  /// ووصف عربي للنوع. الموجب = مستحق للعامل.
+  Future<List<Map<String, Object?>>> workerTransactions(int id) =>
+      _partyTransactionsWithBalance(
+        table: 'worker_transactions',
+        fkColumn: 'worker_id',
+        partyTable: 'workers',
+        id: id,
+        creditTypes: const {'accrual', 'salary', 'irrigation_reversal', 'payment_reversal'},
+      );
 
-  Future<List<Map<String, Object?>>> partnerTransactions(int id) => db.query(
-    'SELECT * FROM partner_transactions WHERE partner_id=? ORDER BY date DESC,id DESC', args: [id]);
+  /// حركات الشريك (الأحدث أولًا) مع المبلغ الموقّع والرصيد الجاري.
+  Future<List<Map<String, Object?>>> partnerTransactions(int id) =>
+      _partyTransactionsWithBalance(
+        table: 'partner_transactions',
+        fkColumn: 'partner_id',
+        partyTable: 'partners',
+        id: id,
+        creditTypes: const {'share_accrual', 'contribution', 'irrigation_reversal', 'payment_reversal'},
+      );
+
+  // يجب أن تطابق creditTypes الثوابت BalanceSql.workerCredit / partnerCredit.
+  Future<List<Map<String, Object?>>> _partyTransactionsWithBalance({
+    required String table,
+    required String fkColumn,
+    required String partyTable,
+    required int id,
+    required Set<String> creditTypes,
+  }) async {
+    final base = await db.query(
+      'SELECT opening_balance,carried_balance FROM $partyTable WHERE id=?',
+      args: [id],
+    );
+    var running = base.isEmpty
+        ? 0
+        : ((base.first['opening_balance'] as num?)?.round() ?? 0) +
+            ((base.first['carried_balance'] as num?)?.round() ?? 0);
+    final rows = await db.query(
+      'SELECT * FROM $table WHERE $fkColumn=? ORDER BY date ASC,id ASC',
+      args: [id],
+    );
+    final out = <Map<String, Object?>>[];
+    for (final raw in rows) {
+      final type = '${raw['type']}';
+      final amount = (raw['amount'] as num?)?.round() ?? 0;
+      final signed = creditTypes.contains(type) ? amount : -amount;
+      running += signed;
+      out.add({
+        ...raw,
+        'description': AccountingCalculations.partyTransactionTypeName(type),
+        'signed_amount': signed,
+        'balance': running,
+      });
+    }
+    return out.reversed.toList();
+  }
 
   Future<int> createWorker({
     required String name,
@@ -802,17 +853,34 @@ class StationRepository {
     double percentageRate = 0,
     String? phone,
     String? title,
+    int opening = 0,
     int? userId,
   }) async {
-    final id = await db.insert('workers', {
-      'name': name,
-      'phone': phone,
-      'job_title': title,
-      'pay_type': payType,
-      'fixed_salary': fixedSalary,
-      'hourly_rate': hourlyRate,
-      'percentage_rate': percentageRate,
-      'active': 1,
+    if (name.trim().isEmpty) throw ArgumentError('اسم العامل مطلوب');
+    final stationId = await accounting.currentStationId();
+    // الإدخال والقيد الافتتاحي في معاملة واحدة: لا يُحفظ رصيد بلا أثر في الأستاذ.
+    final id = await db.transaction((tx) async {
+      final newId = await tx.insert('workers', {
+        'station_id': stationId,
+        'name': name.trim(),
+        'phone': phone,
+        'job_title': title,
+        'pay_type': payType,
+        'fixed_salary': fixedSalary,
+        'hourly_rate': hourlyRate,
+        'percentage_rate': percentageRate,
+        'opening_balance': opening,
+        'active': 1,
+      });
+      await accounting.postPartyOpeningTx(
+        tx,
+        kind: 'worker',
+        id: newId,
+        name: name.trim(),
+        amount: opening,
+        userId: userId,
+      );
+      return newId;
     });
     await db.audit(
       userId: userId,
@@ -824,8 +892,24 @@ class StationRepository {
     return id;
   }
 
+  static const Set<String> _workerEditable = {
+    'name', 'phone', 'job_title', 'pay_type', 'fixed_salary', 'hourly_rate',
+    'percentage_rate', 'notes',
+  };
+  static const Set<String> _partnerEditable = {
+    'name', 'phone', 'ownership_mode', 'shares_count', 'ownership_percentage',
+    'notes',
+  };
+
   Future<void> updateWorker(int id, Map<String,Object?> values, int? userId) async {
-    final old = (await db.query('workers', where:'id=?', whereArgs:[id], limit:1)).first;
+    final unknown = values.keys.where((k) => !_workerEditable.contains(k));
+    if (unknown.isNotEmpty) throw ArgumentError('حقول غير قابلة للتعديل: ${unknown.join('، ')}');
+    if (values.containsKey('name') && '${values['name']}'.trim().isEmpty) {
+      throw ArgumentError('اسم العامل مطلوب');
+    }
+    final found = await db.query('workers', where:'id=?', whereArgs:[id], limit:1);
+    if (found.isEmpty) throw StateError('العامل غير موجود');
+    final old = found.first;
     await db.update('workers', values, 'id=?', [id]);
     await db.audit(userId:userId, operation:'update', table:'workers', recordId:id, oldValues:old, newValues:values);
   }
@@ -834,7 +918,7 @@ class StationRepository {
     // لا حذف لعامل له رصيد (له أو عليه): يخرج من لوحة التحكم وتبقى حركاته، فتتباعد الأرقام.
     final bal = (await accounting.workerBalance(id))['balance'] ?? 0;
     if (bal != 0) {
-      throw StateError('لا يمكن حذف عامل رصيده ${AccountingCalculations.balanceLabel(bal)}؛ سوِّ حسابه أولًا');
+      throw StateError('لا يمكن حذف عامل رصيده ${AccountingCalculations.partyDueLabel(bal)}؛ سوِّ حسابه أولًا');
     }
     await db.update('workers', {'active':0}, 'id=?', [id]);
     await db.audit(userId:userId, operation:'logical_delete', table:'workers', recordId:id, reason:reason);
@@ -892,16 +976,31 @@ class StationRepository {
     int shares = 0,
     double percentage = 0,
     String? phone,
+    int opening = 0,
     int? userId,
   }) async {
-    final id = await db.insert('partners', {
-      'station_id': 1,
-      'name': name.trim(),
-      'phone': phone,
-      'ownership_mode': mode,
-      'shares_count': shares,
-      'ownership_percentage': percentage,
-      'active': 1,
+    if (name.trim().isEmpty) throw ArgumentError('اسم الشريك مطلوب');
+    final stationId = await accounting.currentStationId();
+    final id = await db.transaction((tx) async {
+      final newId = await tx.insert('partners', {
+        'station_id': stationId,
+        'name': name.trim(),
+        'phone': phone,
+        'ownership_mode': mode,
+        'shares_count': shares,
+        'ownership_percentage': percentage,
+        'opening_balance': opening,
+        'active': 1,
+      });
+      await accounting.postPartyOpeningTx(
+        tx,
+        kind: 'partner',
+        id: newId,
+        name: name.trim(),
+        amount: opening,
+        userId: userId,
+      );
+      return newId;
     });
     await db.audit(
       userId: userId,
@@ -914,7 +1013,14 @@ class StationRepository {
   }
 
   Future<void> updatePartner(int id, Map<String,Object?> values, int? userId) async {
-    final old = (await db.query('partners', where:'id=?', whereArgs:[id], limit:1)).first;
+    final unknown = values.keys.where((k) => !_partnerEditable.contains(k));
+    if (unknown.isNotEmpty) throw ArgumentError('حقول غير قابلة للتعديل: ${unknown.join('، ')}');
+    if (values.containsKey('name') && '${values['name']}'.trim().isEmpty) {
+      throw ArgumentError('اسم الشريك مطلوب');
+    }
+    final found = await db.query('partners', where:'id=?', whereArgs:[id], limit:1);
+    if (found.isEmpty) throw StateError('الشريك غير موجود');
+    final old = found.first;
     await db.update('partners', values, 'id=?', [id]);
     await db.audit(userId:userId, operation:'update', table:'partners', recordId:id, oldValues:old, newValues:values);
   }
@@ -922,7 +1028,7 @@ class StationRepository {
     if (reason.trim().isEmpty) throw ArgumentError('سبب الحذف مطلوب');
     final bal = (await accounting.partnerBalance(id))['balance'] ?? 0;
     if (bal != 0) {
-      throw StateError('لا يمكن حذف شريك رصيده ${AccountingCalculations.balanceLabel(bal)}؛ سوِّ حسابه أولًا');
+      throw StateError('لا يمكن حذف شريك رصيده ${AccountingCalculations.partyDueLabel(bal)}؛ سوِّ حسابه أولًا');
     }
     await db.update('partners', {'active':0}, 'id=?', [id]);
     await db.audit(userId:userId, operation:'logical_delete', table:'partners', recordId:id, reason:reason);
@@ -1007,8 +1113,9 @@ class StationRepository {
   }) async {
     if (name.trim().isEmpty) throw ArgumentError('اسم طريقة الدفع مطلوب');
     final code = await _methodLedgerCode(type, cashboxId);
+    final stationId = await accounting.currentStationId();
     final id = await db.insert('payment_methods', {
-      'station_id': 1,
+      'station_id': stationId,
       'name': name.trim(),
       'type': type,
       'cashbox_id': cashboxId,
@@ -1120,8 +1227,18 @@ class StationRepository {
       w += ' AND a.code=?';
       args.add(accountCode);
     }
+    // journal_id = رقم القيد (كانت الواجهة تقرؤه وهو غير موجود في النتيجة فتنهار عند الضغط).
     return db.query(
-      'SELECT je.*,a.code account_code,a.name account_name,jl.debit,jl.credit,jl.beneficiary_id,jl.worker_id,jl.partner_id,jl.memo FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id JOIN accounts a ON a.id=jl.account_id WHERE $w ORDER BY je.date,je.id,jl.id',
+      'SELECT je.*,je.id journal_id,jl.id line_id,a.code account_code,a.name account_name,a.type account_type,'
+      'jl.debit,jl.credit,jl.beneficiary_id,jl.worker_id,jl.partner_id,jl.memo,'
+      'COALESCE(b.name,w.name,p.name) party_name '
+      'FROM journal_entries je '
+      'JOIN journal_lines jl ON jl.journal_entry_id=je.id '
+      'JOIN accounts a ON a.id=jl.account_id '
+      'LEFT JOIN beneficiaries b ON b.id=jl.beneficiary_id '
+      'LEFT JOIN workers w ON w.id=jl.worker_id '
+      'LEFT JOIN partners p ON p.id=jl.partner_id '
+      'WHERE $w ORDER BY je.date,je.id,jl.id',
       args: args,
     );
   }
@@ -1131,6 +1248,49 @@ class StationRepository {
     DateTime? from,
     DateTime? to,
   }) => journal(from: from, to: to, accountCode: accountCode);
+
+  /// كل حسابات الدليل المحاسبي (المصدر الوحيد لقائمة الأستاذ).
+  Future<List<Map<String, Object?>>> accounts() =>
+      db.query('SELECT code,name,type FROM accounts ORDER BY code');
+
+  /// كشف حساب أستاذ: رصيد أول المدة + الحركات برصيد جارٍ + الإجماليات.
+  /// الرصيد = مدين − دائن (الموجب مدين، السالب دائن) لكل أنواع الحسابات.
+  Future<Map<String, Object?>> ledgerStatement(
+    String accountCode, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final f = from == null ? null : DateTime(from.year, from.month, from.day);
+    var opening = 0;
+    if (f != null) {
+      final r = await db.query(
+        'SELECT COALESCE(SUM(jl.debit),0) d,COALESCE(SUM(jl.credit),0) c '
+        'FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id '
+        'JOIN accounts a ON a.id=jl.account_id WHERE a.code=? AND je.date<?',
+        args: [accountCode, f.toIso8601String()],
+      );
+      opening = ((r.first['d'] as num?)?.round() ?? 0) -
+          ((r.first['c'] as num?)?.round() ?? 0);
+    }
+    final lines = await journal(from: f, to: to, accountCode: accountCode);
+    var running = opening, totalDebit = 0, totalCredit = 0;
+    final rows = <Map<String, Object?>>[];
+    for (final x in lines) {
+      final d = (x['debit'] as num?)?.round() ?? 0;
+      final c = (x['credit'] as num?)?.round() ?? 0;
+      totalDebit += d;
+      totalCredit += c;
+      running += d - c;
+      rows.add({...x, 'balance': running});
+    }
+    return {
+      'opening': opening,
+      'total_debit': totalDebit,
+      'total_credit': totalCredit,
+      'closing': running,
+      'rows': rows,
+    };
+  }
   Future<Map<String, String>> settings() => db
       .query('SELECT key,value FROM settings')
       .then(

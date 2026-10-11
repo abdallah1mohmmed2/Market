@@ -25,7 +25,7 @@ class AppDatabase {
     final path = p.join(dir, 'saqia_station_v2.db');
     _db = await openDatabase(
       path,
-      version: 13,
+      version: 14,
       // المفاتيح الأجنبية تُعطَّل أثناء الإنشاء/الترقية لأن SQLite لا يسمح بتغيير
       // PRAGMA foreign_keys داخل معاملة الترقية، وتُفعَّل في onOpen بعد انتهائها.
       onConfigure: (d) async => d.execute('PRAGMA foreign_keys=OFF'),
@@ -194,6 +194,37 @@ class AppDatabase {
     if (oldV < 13) {
       await _migrateV13(d);
     }
+    if (oldV < 14) {
+      await _migrateV14(d);
+    }
+  }
+
+  /// V14: ربط حركات الشريك بأصلها (مرجع + منفّذ) كحركات العامل، وحساب مستقل لحصص الشركاء.
+  Future<void> _migrateV14(Database d) async {
+    final cols = await d.rawQuery('PRAGMA table_info(partner_transactions)');
+    for (final c in const [
+      ['reference_type', 'TEXT'],
+      ['reference_id', 'INTEGER'],
+      ['created_by', 'INTEGER'],
+    ]) {
+      if (!cols.any((x) => x['name'] == c[0])) {
+        await d.execute('ALTER TABLE partner_transactions ADD COLUMN ${c[0]} ${c[1]}');
+      }
+    }
+    await d.insert('accounts', {
+      'code': '3200',
+      'name': 'حصص الشركاء من الأرباح',
+      'type': 'equity',
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    // قيود الحصص السابقة كانت على 5000 «مصروف العمال»؛ تُنقل إلى 3200 مع قيود عكسها.
+    final a5000 = await _acc(d, '5000');
+    final a3200 = await _acc(d, '3200');
+    if (a5000 != null && a3200 != null) {
+      await d.execute(
+        "UPDATE journal_lines SET account_id=? WHERE account_id=? AND journal_entry_id IN (SELECT id FROM journal_entries WHERE reference_type='partner' OR (reference_type='reversal' AND description LIKE '%حصة شريك%'))",
+        [a3200, a5000],
+      );
+    }
   }
 
   /// V13: توحيد اشتقاق حساب الصندوق، وقيود الأرصدة الافتتاحية، وفصل «عكس سقاية الشريك».
@@ -353,6 +384,7 @@ class AppDatabase {
         ['3100', 'الأرصدة المرحلة', 'equity'],
         ['3990', 'الفروقات والتصحيحات', 'equity'],
         ['1120', 'المحافظ الإلكترونية', 'asset'],
+        ['3200', 'حصص الشركاء من الأرباح', 'equity'],
       ];
       for (var i = 0; i < accounts.length; i++)
         await d.insert('accounts', {

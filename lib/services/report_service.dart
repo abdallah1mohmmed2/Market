@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../data/repositories/repositories.dart';
+import '../domain/accounting/calculations.dart';
 
 class ReportService {
   final StationRepository repo;
@@ -145,7 +146,7 @@ class ReportService {
       if (sourceHeaders.isEmpty && chunk.isNotEmpty) sourceHeaders.addAll(chunk.first.keys.take(8));
       final headers = sourceHeaders.map(_fieldName).toList();
       final data = chunk
-          .map((r) => sourceHeaders.map((h) => _formatValue(h, r[h])).toList())
+          .map((r) => sourceHeaders.map((h) => _formatValue(h, r[h], key)).toList())
           .toList();
       if (chunk.isEmpty) data.add(['لا توجد بيانات']);
       doc.addPage(
@@ -236,7 +237,11 @@ class ReportService {
     'wallet': 'محفظة', 'other': 'أخرى',
   }[v] ?? 'طريقة دفع';
 
-  String _formatValue(String key, Object? value) {
+  String _formatValue(String key, Object? value, [String? reportKey]) {
+    final partyReport = reportKey == 'worker_transactions' || reportKey == 'partner_accounts';
+    if (partyReport && key == 'type') {
+      return AccountingCalculations.partyTransactionTypeName('$value');
+    }
     if (key == 'start_datetime' || key == 'end_datetime') {
       final d = DateTime.tryParse('$value');
       if (d != null) return DateFormat('yyyy/MM/dd HH:mm', 'ar').format(d);
@@ -251,6 +256,8 @@ class ReportService {
     if (key == 'kind') return switch ('$value') { 'receipt'=>'شراء وإضافة','delivery'=>'تسليم','advance'=>'سلفة','consumption'=>'استهلاك','correction'=>'تصحيح','opening_balance'=>'رصيد افتتاحي','payment'=>'دفعة','expense'=>'مصروف', _=> 'حركة' };
     if (key == 'balance' || key == 'remaining') {
       final n = value is num ? value.round() : int.tryParse('$value') ?? 0;
+      // العامل/الشريك: الموجب = له (مستحق على المحطة)، عكس المستفيد.
+      if (partyReport && key == 'balance') return _partyDueLabel(n);
       return _balanceLabel(n);
     }
     if (key == 'category') return _categoryName('$value');
@@ -293,6 +300,12 @@ class ReportService {
     if (status != null) parts.add('الحالة: $status');
     return parts.isEmpty ? 'بدون فلاتر' : parts.join(' • ');
   }
+
+  String _partyDueLabel(int balance) => balance > 0
+      ? 'له ${NumberFormat('#,##0', 'ar').format(balance)} ريال'
+      : balance < 0
+      ? 'عليه ${NumberFormat('#,##0', 'ar').format(balance.abs())} ريال'
+      : 'متوازن';
 
   String _balanceLabel(int balance) => balance > 0
       ? 'عليه ${NumberFormat('#,##0', 'ar').format(balance)} ريال'

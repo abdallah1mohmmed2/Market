@@ -17,7 +17,7 @@ dependencies:
   intl: ^0.20.3
   pdf: ^3.11.1
   printing: ^5.13.4
-  file_picker: ^8.3.7
+  file_picker: ^10.3.3
   path_provider: ^2.1.5
   share_plus: ^10.1.2
   http: ^1.2.2

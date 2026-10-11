@@ -6,6 +6,7 @@ class Permissions {
     'users' ||
     'restore' ||
     'override_queue' ||
+    'delete_records' ||
     'close_period' => role == AppRole.manager,
     'beneficiaries' ||
     'irrigation' ||

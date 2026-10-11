@@ -180,6 +180,27 @@ class AccountingCalculations {
       : balance < 0
       ? 'له ${balance.abs()} ريال'
       : 'متوازن';
+
+  /// اتجاه رصيد العامل/الشريك (عكس المستفيد): الموجب = مستحق له على المحطة (له)،
+  /// والسالب = عليه للمحطة (سقاية/سلفة تجاوزت مستحقاته).
+  static String partyDueLabel(int balance) => balance > 0
+      ? 'له ${balance.abs()} ريال'
+      : balance < 0
+      ? 'عليه ${balance.abs()} ريال'
+      : 'متوازن';
+
+  /// أسماء عربية لأنواع حركات العامل والشريك بدل عرض الرمز الخام.
+  static String partyTransactionTypeName(String type) => switch (type) {
+    'accrual' => 'استحقاق',
+    'salary' => 'راتب',
+    'share_accrual' => 'حصة أرباح',
+    'contribution' => 'مساهمة',
+    'irrigation' => 'سقاية (خصم من المستحق)',
+    'payment' => 'دفعة',
+    'irrigation_reversal' => 'عكس سقاية',
+    'payment_reversal' => 'عكس دفعة',
+    _ => type,
+  };
   static int workerDue({
     required int fixed,
     required double hours,

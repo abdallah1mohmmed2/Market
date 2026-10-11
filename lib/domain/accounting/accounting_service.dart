@@ -46,9 +46,16 @@ class AccountingService {
       whereArgs: [code],
       limit: 1,
     );
-    if (r.isEmpty) throw StateError('الحساب غير موجود: $code');
-    return r.first['id'] as int;
+    if (r.isNotEmpty) return r.first['id'] as int;
+    // حسابات أُضيفت بعد إصدارات سابقة: تُنشأ عند غيابها (مثل استعادة نسخة احتياطية قديمة).
+    final auto = _autoAccounts[code];
+    if (auto == null) throw StateError('الحساب غير موجود: $code');
+    return tx.insert('accounts', {'code': code, 'name': auto.$1, 'type': auto.$2});
   }
+
+  static const Map<String, (String, String)> _autoAccounts = {
+    '3200': ('حصص الشركاء من الأرباح', 'equity'),
+  };
 
   Future<int> _entry(
     Transaction tx, {
@@ -254,6 +261,65 @@ class AccountingService {
     cashboxId: cashboxId,
   );
 
+  /// محطة العمل الحالية: محطة المضخة المحددة في الإعدادات، وإلا أول محطة فعالة، وإلا 1.
+  /// تُقرأ خارج أي معاملة مفتوحة (تفاديًا لتعليق sqflite).
+  Future<int> currentStationId() async {
+    final set = await settings();
+    final pumpId = int.tryParse(set['selected_pump_id'] ?? '');
+    if (pumpId != null) {
+      final r = await database.query(
+        'SELECT station_id FROM pumps WHERE id=? LIMIT 1',
+        args: [pumpId],
+      );
+      final v = r.isEmpty ? null : (r.first['station_id'] as num?)?.toInt();
+      if (v != null) return v;
+    }
+    final r = await database.query(
+      'SELECT id FROM stations WHERE active=1 ORDER BY id LIMIT 1',
+    );
+    return r.isEmpty ? 1 : (r.first['id'] as num).toInt();
+  }
+
+  /// قيد الرصيد الافتتاحي لعامل/شريك (الموجب = له على المحطة، السالب = عليه).
+  /// له: مدين الأرصدة الافتتاحية 3000 / دائن حساب الطرف. عليه: العكس.
+  Future<void> postPartyOpeningTx(
+    Transaction tx, {
+    required String kind,
+    required int id,
+    required String name,
+    required int amount,
+    int? userId,
+  }) async {
+    if (amount == 0) return;
+    await _assertPeriodOpen(tx, AppClock.now());
+    final isWorker = kind == 'worker';
+    final liability = await _accountIdTx(tx, isWorker ? '2100' : '2200');
+    final equity = await _accountIdTx(tx, '3000');
+    final owed = amount > 0;
+    final abs = amount.abs();
+    await _entry(
+      tx,
+      description:
+          '${isWorker ? 'رصيد افتتاحي للعامل' : 'رصيد افتتاحي للشريك'} $name',
+      referenceType: isWorker ? 'worker_opening' : 'partner_opening',
+      referenceId: id,
+      lines: [
+        {
+          'account_id': liability,
+          if (isWorker) 'worker_id': id else 'partner_id': id,
+          'debit': owed ? 0 : abs,
+          'credit': owed ? abs : 0,
+        },
+        {
+          'account_id': equity,
+          'debit': owed ? abs : 0,
+          'credit': owed ? 0 : abs,
+        },
+      ],
+      userId: userId,
+    );
+  }
+
   Future<int> recordIrrigation({
     required int stationId,
     required int pumpId,
@@ -291,6 +357,10 @@ class AccountingService {
     // الدفعة المرافقة للسقاية تخص المستفيد فقط؛ العامل/الشريك يُسدَّد حسابهما من شاشة الدفع.
     if (paidAmount > 0 && partyType != 'beneficiary')
       throw ArgumentError('الدفعة المرافقة للسقاية متاحة للمستفيد فقط');
+    // الدور والحجز والجلسة تخص المستفيد فقط؛ سقاية عامل/شريك لا يجوز أن تُغلق دور مستفيد.
+    if (partyType != 'beneficiary' &&
+        (queueId != null || bookingId != null || sessionId != null))
+      throw ArgumentError('الربط بالدور أو الحجز أو الجلسة متاح لسقاية المستفيد فقط');
     final set = await settings();
     final configuredPumpId = int.tryParse(set['selected_pump_id'] ?? '');
     if (configuredPumpId == null) throw StateError('لا توجد مضخة محددة في الإعدادات');
@@ -398,13 +468,44 @@ class AccountingService {
       if (sessionId != null) {
         final sess = await tx.query(
           'irrigation_sessions',
-          columns: ['status'],
+          columns: ['status', 'beneficiary_id'],
           where: 'id=?',
           whereArgs: [sessionId],
           limit: 1,
         );
         if (sess.isEmpty || sess.first['status'] != 'running')
           throw StateError('الجلسة غير موجودة أو ليست قيد التشغيل');
+        if (sess.first['beneficiary_id'] != beneficiaryId)
+          throw StateError('الجلسة المختارة تخص مستفيدًا آخر');
+      }
+      if (queueId != null) {
+        final q = await tx.query(
+          'queue_entries',
+          columns: ['status', 'beneficiary_id'],
+          where: 'id=?',
+          whereArgs: [queueId],
+          limit: 1,
+        );
+        if (q.isEmpty) throw StateError('إدخال الدور غير موجود');
+        if (q.first['beneficiary_id'] != beneficiaryId)
+          throw StateError('الدور المختار يخص مستفيدًا آخر');
+        if (!['waiting', 'postponed'].contains('${q.first['status']}'))
+          throw StateError('الدور المختار لم يعد قائمًا (تمت خدمته أو إلغاؤه)');
+      }
+      if (bookingId != null) {
+        final bk = await tx.query(
+          'booking_requests',
+          columns: ['status', 'beneficiary_id'],
+          where: 'id=?',
+          whereArgs: [bookingId],
+          limit: 1,
+        );
+        if (bk.isEmpty) throw StateError('الحجز غير موجود');
+        if (bk.first['beneficiary_id'] != beneficiaryId)
+          throw StateError('الحجز المختار يخص مستفيدًا آخر');
+        if (!['new', 'under_review', 'scheduled', 'accepted', 'notified']
+            .contains('${bk.first['status']}'))
+          throw StateError('الحجز المختار لم يعد قائمًا (مكتمل أو ملغى)');
       }
       final overlap = await tx.rawQuery(
         "SELECT id FROM irrigations WHERE pump_id=? AND status!='cancelled' AND start_datetime<? AND end_datetime>? LIMIT 1",
@@ -561,7 +662,10 @@ class AccountingService {
           'type': 'irrigation',
           'amount': totalCharged,
           'ownership_snapshot': null,
+          'reference_type': 'irrigation',
+          'reference_id': id,
           'notes': 'خصم قيمة سقاية من حساب الشريك',
+          'created_by': userId,
         });
       }
       if (partyType == 'beneficiary' &&
@@ -776,6 +880,7 @@ class AccountingService {
     required int paymentMethodId,
     required int cashboxId,
     int? userId,
+    String? referenceNumber,
     String? notes,
   }) => database.transaction((tx) async {
     final id = await _paymentInTx(
@@ -785,6 +890,7 @@ class AccountingService {
       paymentMethodId: paymentMethodId,
       cashboxId: cashboxId,
       userId: userId,
+      referenceNumber: referenceNumber,
       notes: notes,
     );
     await tx.insert('worker_transactions', {
@@ -806,6 +912,7 @@ class AccountingService {
     required int paymentMethodId,
     required int cashboxId,
     int? userId,
+    String? referenceNumber,
     String? notes,
   }) => database.transaction((tx) async {
     final id = await _paymentInTx(
@@ -815,6 +922,7 @@ class AccountingService {
       paymentMethodId: paymentMethodId,
       cashboxId: cashboxId,
       userId: userId,
+      referenceNumber: referenceNumber,
       notes: notes,
     );
     await tx.insert('partner_transactions', {
@@ -822,7 +930,10 @@ class AccountingService {
       'date': AppClock.now().toIso8601String(),
       'type': 'payment',
       'amount': amount,
+      'reference_type': 'payment',
+      'reference_id': id,
       'notes': notes,
+      'created_by': userId,
     });
     return id;
   });
@@ -1125,11 +1236,12 @@ class AccountingService {
     if (!_cashLedgerCodes.contains(ledgerAccountCode)) {
       throw ArgumentError('حساب الصندوق غير صالح');
     }
+    final stationId = await currentStationId();
     return database.transaction((tx) async {
       final now = AppClock.now();
       if (openingBalance > 0) await _assertPeriodOpen(tx, now);
       final id = await tx.insert('cashboxes', {
-        'station_id': 1,
+        'station_id': stationId,
         'name': name.trim(),
         'opening_balance': openingBalance,
         'current_balance': openingBalance,
@@ -1309,8 +1421,10 @@ class AccountingService {
       'type': 'share_accrual',
       'amount': amount,
       'ownership_snapshot': percentage,
+      'created_by': userId,
     });
-    final expense = await _accountIdTx(tx, '5000'),
+    // حصة الشريك من الأرباح توزيع على الملكية (حقوق ملكية 3200) وليست مصروف عمال 5000.
+    final expense = await _accountIdTx(tx, '3200'),
         payable = await _accountIdTx(tx, '2200');
     await _entry(
       tx,
@@ -1450,7 +1564,10 @@ class AccountingService {
           // نوع مستقل: عكس خصم سابق وليس مساهمة، فلا تتضخم «الأرباح».
           'type': 'irrigation_reversal',
           'amount': (old['total_amount'] as num).round(),
+          'reference_type': 'irrigation_cancel',
+          'reference_id': id,
           'notes': 'عكس سقاية رقم $id: $reason',
+          'created_by': userId,
         });
       }
       await database.auditTx(
@@ -1562,7 +1679,10 @@ class AccountingService {
         'date': now,
         'type': 'payment_reversal',
         'amount': amount,
+        'reference_type': 'payment_cancel',
+        'reference_id': payId,
         'notes': 'إلغاء دفعة رقم $payId: $reason',
+        'created_by': userId,
       });
     }
     await database.auditTx(

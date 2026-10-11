@@ -79,6 +79,10 @@ void main() {
       expect(AccountingCalculations.balanceLabel(4000), 'عليه 4000 ريال');
       expect(AccountingCalculations.balanceLabel(-2500), 'له 2500 ريال');
       expect(AccountingCalculations.balanceLabel(0), 'متوازن');
+      // العامل/الشريك: الموجب = له (المحطة مدينة)، السالب = عليه.
+      expect(AccountingCalculations.partyDueLabel(2800), 'له 2800 ريال');
+      expect(AccountingCalculations.partyDueLabel(-300), 'عليه 300 ريال');
+      expect(AccountingCalculations.partyDueLabel(0), 'متوازن');
     });
 
     test('حصة الشريك بالنسبة والأسهم', () {

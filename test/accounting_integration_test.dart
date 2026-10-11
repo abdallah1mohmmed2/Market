@@ -400,4 +400,100 @@ void main() {
     expect(sum['paid'], 0);
     expect(sum['balance'], 0);
   });
+
+  test('الرقم المرجعي يُحفظ في دفع العامل والشريك، وحركة الشريك تُربط بالدفعة', () async {
+    await db.transaction((tx) => tx.rawUpdate('UPDATE cashboxes SET current_balance=100000 WHERE id=1'));
+    final w = await db.insert('workers', {'name': 'عامل مرجع', 'pay_type': 'fixed'});
+    final p = await db.insert('partners', {'name': 'شريك مرجع', 'ownership_mode': 'shares'});
+    final pw = await svc.payWorker(
+      workerId: w, amount: 100, paymentMethodId: 1, cashboxId: 1, userId: 1, referenceNumber: 'REF-W',
+    );
+    final pp = await svc.payPartner(
+      partnerId: p, amount: 100, paymentMethodId: 1, cashboxId: 1, userId: 1, referenceNumber: 'REF-P',
+    );
+    final refs = {
+      for (final r in await db.query(
+        'SELECT id,reference_number FROM payments WHERE id IN (?,?)',
+        args: [pw, pp],
+      ))
+        r['id']: r['reference_number'],
+    };
+    expect(refs, {pw: 'REF-W', pp: 'REF-P'});
+    final pt = await db.query(
+      "SELECT reference_type,reference_id,created_by FROM partner_transactions WHERE partner_id=? AND type='payment'",
+      args: [p],
+    );
+    expect(pt.first['reference_type'], 'payment');
+    expect(pt.first['reference_id'], pp);
+    expect(pt.first['created_by'], 1);
+    // إلغاء الدفعة يعكس حركة الشريك ويربط العكس بالدفعة الملغاة.
+    await svc.cancelPayment(pp, 1, 'خطأ');
+    final rev = await db.query(
+      "SELECT reference_type,reference_id FROM partner_transactions WHERE partner_id=? AND type='payment_reversal'",
+      args: [p],
+    );
+    expect(rev.first['reference_type'], 'payment_cancel');
+    expect(rev.first['reference_id'], pp);
+  });
+
+  test('سقاية الشريك وإلغاؤها تُربطان بالسقاية في partner_transactions', () async {
+    await useSolar6000();
+    final p = await db.insert('partners', {'name': 'شريك ربط', 'ownership_mode': 'shares'});
+    final id = await irrigationFor(partnerId: p, start: DateTime(2026, 6, 3, 8));
+    final used = await db.query(
+      "SELECT reference_type,reference_id FROM partner_transactions WHERE partner_id=? AND type='irrigation'",
+      args: [p],
+    );
+    expect(used.first['reference_type'], 'irrigation');
+    expect(used.first['reference_id'], id);
+    await svc.cancelIrrigation(id, 1, 'خطأ');
+    final rev = await db.query(
+      "SELECT reference_type,reference_id FROM partner_transactions WHERE partner_id=? AND type='irrigation_reversal'",
+      args: [p],
+    );
+    expect(rev.first['reference_type'], 'irrigation_cancel');
+    expect(rev.first['reference_id'], id);
+  });
+
+  test('الرصيد الافتتاحي للعامل والشريك يُقيَّد في الأستاذ ويطابق كشفيهما', () async {
+    final repo = StationRepository(db);
+    final w = await repo.createWorker(name: 'عامل افتتاحي', payType: 'fixed', opening: 700, phone: '777');
+    final p = await repo.createPartner(name: 'شريك افتتاحي', mode: 'shares', opening: -300);
+    expect((await svc.workerBalance(w))['balance'], 700);
+    expect(await glPayable('2100', 'worker_id', w), 700);
+    expect((await svc.partnerBalance(p))['balance'], -300);
+    expect(await glPayable('2200', 'partner_id', p), -300);
+    final row = await db.query('SELECT phone FROM workers WHERE id=?', args: [w]);
+    expect(row.first['phone'], '777'); // الهاتف لم يعد يضيع عند الإنشاء
+    // حذف عامل/شريك برصيد غير صفر يرمي StateError مفهومًا تلتقطه الواجهة بـ runGuarded.
+    await expectLater(repo.deleteWorker(w, 1, 'سبب'), throwsStateError);
+    await expectLater(repo.deletePartner(p, 1, 'سبب'), throwsStateError);
+  });
+
+  test('استحقاق حصة الشريك يُقيَّد على 3200 لا على مصروف العمال 5000', () async {
+    final p = await db.insert('partners', {'name': 'شريك حصة', 'ownership_mode': 'shares'});
+    final b5000 = await accountNet('5000');
+    final b3200 = await accountNet('3200');
+    await svc.createPartnerShare(partnerId: p, amount: 900, date: DateTime(2026, 3, 1), userId: 1);
+    expect((await accountNet('5000')) - b5000, 0);
+    expect((await accountNet('3200')) - b3200, 900);
+    expect(await glPayable('2200', 'partner_id', p), 900);
+  });
+
+  test('الصندوق والشريك الجديدان يتبعان محطة المضخة المحددة لا الرقم 1', () async {
+    final repo = StationRepository(db);
+    final now = DateTime(2026, 1, 1).toIso8601String();
+    final st = await db.insert('stations', {'name': 'محطة ثانية', 'created_at': now, 'updated_at': now});
+    final pump = await db.insert('pumps', {'station_id': st, 'name': 'مضخة 2', 'system_type': 'diesel', 'active': 1});
+    await db.update('settings', {'value': '$pump'}, 'key=?', ['selected_pump_id']);
+    try {
+      expect(await svc.currentStationId(), st);
+      final cb = await repo.createCashbox(name: 'صندوق المحطة الثانية');
+      final pt = await repo.createPartner(name: 'شريك المحطة الثانية', mode: 'shares');
+      expect((await db.query('SELECT station_id FROM cashboxes WHERE id=?', args: [cb])).first['station_id'], st);
+      expect((await db.query('SELECT station_id FROM partners WHERE id=?', args: [pt])).first['station_id'], st);
+    } finally {
+      await db.update('settings', {'value': '1'}, 'key=?', ['selected_pump_id']);
+    }
+  });
 }
